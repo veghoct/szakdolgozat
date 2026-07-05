@@ -1,6 +1,6 @@
-include("imports.jl")
-include("interfaces.jl")
-include("model.jl")
+include("../util/imports.jl")
+include("../util/interfaces.jl")
+include("../util/model.jl")
 
 function run_once(run_id; steps = 5000, lux_units = 100, com_units = 400)
     districts = DataFrame(
