@@ -11,7 +11,7 @@ function run_once(run_id; steps = 5000, lux_units = 100, com_units = 400)
         units = [10, 40, 50],
     )
 
-    model = SegregationModel(2400, 0.75, 0.75, 0, 0, 90, districts, run_id)
+    model = SegregationModel(2400, 0.75, 0.75, 0, 0, 90, districts)
 
     run_for!(model, steps)
 
@@ -21,6 +21,28 @@ function run_once(run_id; steps = 5000, lux_units = 100, com_units = 400)
     agent_data.com_units = fill(com_units, nrow(agent_data))
 
     return agent_data
+end
+
+function lineplot_grouped!(plt, df::DataFrame, xcol::Symbol, ycol::Symbol; groupcol::Symbol, subplot::Int = 1, xlabel = "", ylabel = "", title = "", marker = :none)
+    agg = combine(groupby(df, [xcol, groupcol]), ycol => mean => :y)
+    sort!(agg, [groupcol, xcol])
+
+    for group_df in groupby(agg, groupcol)
+        label = string(first(group_df[!, groupcol]))
+        plot!(
+            plt,
+            group_df[!, xcol],
+            group_df[!, :y],
+            subplot = subplot,
+            label = label,
+            xlabel = xlabel,
+            ylabel = ylabel,
+            title = title,
+            marker = marker,
+        )
+    end
+
+    return plt
 end
 
 runs = 100
@@ -34,7 +56,7 @@ all_runs = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...)
 using DataFrames
 
 avg_last_rent = all_runs |>
-    x -> filter(:Step => ==(maximum(x.Step)), x) |>
+    x -> filter(:Step => s -> s >= maximum(x.Step) - 499, x) |>
     x -> combine(groupby(x, :agent_uid), :rent => mean => :avg_rent)
 
 print(avg_last_rent)

@@ -147,45 +147,16 @@ function rent_hike!(district::DistrictAgent, model::SegregationModel)
     current_residents = [a for a in model.residents if a.home === district]
     vacancy_rate = 1 - length(current_residents) / district.units
 
-    if vacancy_rate > 0.15
+    if vacancy_rate > 0.05
       district.rent *= 0.95
     end
 
-    if vacancy_rate < 0.15
+    if vacancy_rate < 0.05
       district.rent *= 1.05
     end
 end
 
 function remove_and_replace_late_agents!(model::SegregationModel)
-    filter!(model.residents) do resident
-        any(d.rent / resident.income < 0.5 for d in model.districts)
-    end
-
-    missing_residents = model.agent_number - length(model.residents)
-
-    occupancy = Dict(d => 0 for d in model.districts)
-    for a in model.residents
-        occupancy[a.home] += 1
-    end
-
-    for _ in 1:missing_residents
-        mu = Float64(log(model.mean_param) - 0.5 * (model.sigma^2))
-        income = exp(mu + Float64(model.sigma) * randn(model.rng))
-
-        affordable_blocks = [d for d in model.districts if d.rent / income < 0.5 && occupancy[d] < d.units]
-
-        if isempty(affordable_blocks)
-            continue
-        end
-
-        chosen = rand(model.rng, affordable_blocks)
-        occupancy[chosen] += 1
-
-        new_resident = ResidentAgent(1, 0, nothing, Float64(income), nothing, chosen)
-
-        push!(model.residents, new_resident)
-    end
-
     return nothing
 end
 
@@ -229,26 +200,4 @@ function run_for!(model::SegregationModel, steps::Integer)
         step!(model)
     end
     return model
-end
-
-function lineplot_grouped!(plt, df::DataFrame, xcol::Symbol, ycol::Symbol; groupcol::Symbol, subplot::Int = 1, xlabel = "", ylabel = "", title = "", marker = :none)
-    agg = combine(groupby(df, [xcol, groupcol]), ycol => mean => :y)
-    sort!(agg, [groupcol, xcol])
-
-    for group_df in groupby(agg, groupcol)
-        label = string(first(group_df[!, groupcol]))
-        plot!(
-            plt,
-            group_df[!, xcol],
-            group_df[!, :y],
-            subplot = subplot,
-            label = label,
-            xlabel = xlabel,
-            ylabel = ylabel,
-            title = title,
-            marker = marker,
-        )
-    end
-
-    return plt
 end
