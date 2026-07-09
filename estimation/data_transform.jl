@@ -20,11 +20,6 @@ year = 2018:2023
 median_values = Vector(df_median[1, :])
 median_price_index = (Vector(df_median[1, :]) ./ df_median[1, 3]) * 100
 
-println(median_values)
-println(median_price_index)
-println(df_median)
-println(df_median[1, 3])
-
 
 final_df = DataFrame(
     Year = year,

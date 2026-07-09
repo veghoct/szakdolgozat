@@ -1,6 +1,6 @@
 import Pkg
 
-for pkg in ["DataFrames", "CSV", "Plots", "Distances", "Clustering"]
+for pkg in ["DataFrames", "CSV", "Plots", "Distances", "Clustering", "Distributions", "FastGaussQuadrature", "Optim"]
     if Base.find_package(pkg) === nothing
         Pkg.add(pkg)
     end
@@ -16,3 +16,6 @@ using CSV
 using Distances
 using Clustering
 using Statistics
+using Optim
+using Distributions
+using FastGaussQuadrature
