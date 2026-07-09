@@ -1,10 +1,15 @@
 include("../util/imports.jl")
 
-district_moments = CSV.read(joinpath(@__DIR__, "..", ".localrw", "budapest_keruletek_adatmomentumai.csv"), DataFrame, header = true)
+df = CSV.read(joinpath(@__DIR__, "..", ".localrw", "budapest_ingatlanok_kiado_transzformalt_2020_index.csv"), DataFrame, header = true)
 
-# -----------------------------
-# 2. Select variables
-# -----------------------------
+df.price_per_area = df.price_in_2020_median_index ./ df.area_size
+
+district_moments = combine(groupby(df, :city),
+    :price_in_2020_median_index => (x -> quantile(x, 0.5)) => :p50,
+    :price_per_area              => (x -> quantile(x, 0.5)) => :p50_m2,
+    :price_in_2020_median_index => (x -> quantile(x, 0.9)) => :p90,
+    :price_per_area              => (x -> quantile(x, 0.9)) => :p90_m2
+)
 
 vars = [
 #    :avg_rent,
@@ -82,6 +87,5 @@ p_elbow = plot(
 
 #savefig(p_elbow, ".figures/budapest_elbow.svg")
 
-#println(first(df, 1))
 println(district_moments)
 println()
