@@ -6,7 +6,7 @@ annual_income_per_person = [564_041, 881_304, 1_057_318, 1_305_526, 1_459_115, 1
 # Source: https://www.ksh.hu/stadat_files/jov/hu/jov0022.html
 household_size = [3.0, 3.0, 2.9, 2.6, 2.4, 2.4, 2.1, 2.1, 2.0, 1.7]
 
-national_budapest_average_income_ratio = []
+national_budapest_average_income_ratio = [ 	]
 
 # Since the ABM is presuming that a residential agent is a household, we want to work with per household data
 # not per person data
@@ -61,8 +61,8 @@ function multistart_optimize(objective, starts)
             NelderMead(),
             Optim.Options(
                 iterations = 50_000,
-                f_tol = 1e-10,
-                x_tol = 1e-10
+                f_abstol = 1e-10,
+                x_abstol = 1e-10
             )
         )
 
@@ -376,32 +376,31 @@ function plot_distribution(fit, y_obs; savepath=nothing)
     u = range(0.001, 0.999; length=2000)
     x = [fitted_quantile(ui, fit) for ui in u]
 
-    # approximate density from quantile function:
-    # f(Q(u)) = 1 / Q'(u)
     dxdu = diff(x) ./ diff(collect(u))
     x_mid = (x[1:end-1] .+ x[2:end]) ./ 2
     pdf = 1.0 ./ dxdu
 
-    p = hline!(y_obs; color=:red, alpha=0.45, label="Observed decile means")
-
-    plot!(
-        p,
-        x_mid,
-        pdf;
+    p = plot(
+        x_mid, pdf;
         lw=3,
-        label="Fitted density"
+        label="Fitted density",
+        xlabel="Income",
+        ylabel="Density",
+        title="$(fit.distribution) distribution"
     )
+
+    vline!(p, y_obs; color=:red, alpha=0.45, lw=1.5, label=false)
 
     savepath !== nothing && savefig(p, savepath)
     return p
 end
 
-plot_fit(fit_ln, monthly_income_per_household, savepath=".figures/ln.svg")
-plot_fit(fit_dagum, monthly_income_per_household, savepath=".figures/dagum.svg")
-plot_fit(fit_sm, monthly_income_per_household, savepath=".figures/sm.svg")
-plot_fit(fit_gb2, monthly_income_per_household, savepath=".figures/gb2.svg")
+plot_fit(fit_ln, monthly_income_per_household, savepath=".figures/income/ln.svg")
+plot_fit(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum.svg")
+plot_fit(fit_sm, monthly_income_per_household, savepath=".figures/income/sm.svg")
+plot_fit(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2.svg")
 
-plot_distribution(fit_ln, monthly_income_per_household, savepath=".figures/ln_dist.svg")
-plot_distribution(fit_dagum, monthly_income_per_household, savepath=".figures/dagum_dis.svg")
-plot_distribution(fit_sm, monthly_income_per_household, savepath=".figures/sm_dist.svg")
-plot_distribution(fit_gb2, monthly_income_per_household, savepath=".figures/gb2_dist.svg")
+plot_distribution(fit_ln, monthly_income_per_household, savepath=".figures/income/ln_dist.svg")
+plot_distribution(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum_dis.svg")
+plot_distribution(fit_sm, monthly_income_per_household, savepath=".figures/income/sm_dist.svg")
+plot_distribution(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2_dist.svg")

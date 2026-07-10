@@ -2,33 +2,15 @@ include("../util/imports.jl")
 
 df = CSV.read(joinpath(@__DIR__, "..", ".localrw", "budapest_ingatlanok_kiado_transzformalt_2020_index.csv"), DataFrame, header = true)
 
-df.price_per_area = df.price_in_2020_median_index ./ df.area_size
-
 district_moments = combine(groupby(df, :city),
-    :price_in_2020_median_index => (x -> quantile(x, 0.5)) => :p50,
-    :price_per_area              => (x -> quantile(x, 0.5)) => :p50_m2,
-    :price_in_2020_median_index => (x -> quantile(x, 0.9)) => :p90,
-    :price_per_area              => (x -> quantile(x, 0.9)) => :p90_m2
+    :price_in_2020_index => (x -> quantile(x, 0.5)) => :p50,
+    :price_per_area => (x -> quantile(x, 0.5)) => :p50_m2,
+    :price_in_2020_index => (x -> quantile(x, 0.9)) => :p90,
+    :price_per_area => (x -> quantile(x, 0.9)) => :p90_m2
 )
 
-vars = [
-#    :avg_rent,
-#    :avg_rent_m2,
-#    :std_rent,
-#    :std_rent_m2,
-#    :p25,
-#    :p25_m2,
-    :p50,
-    :p50_m2,
-#    :p75,
-#    :p75_m2,
-    :p90,
-    :p90_m2,
-#    :p90_p50,
-#    :p75_p25
-]
-
-X = Matrix(district_moments[:, vars])
+# Turn district_moments df into matrix
+X = Matrix(district_moments[:, [:p50, :p50_m2, :p90, :p90_m2]])
 
 # Standardize variables: mean 0, standard deviation 1
 Z = (X .- mean(X, dims = 1)) ./ std(X, dims = 1)
@@ -87,5 +69,9 @@ p_elbow = plot(
 
 #savefig(p_elbow, ".figures/budapest_elbow.svg")
 
-println(district_moments)
+df = leftjoin(df, district_moments[:, [:city, :kmeans_cluster]], on = "city")
+    
+CSV.write(joinpath(@__DIR__, "..", ".localrw", "budapest_ingatlanok_kiado_transzformalt_2020_index.csv"), df, header = true)
+
+println(first(df, 1))
 println()
