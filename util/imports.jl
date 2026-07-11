@@ -10,7 +10,7 @@ for pkg in [
         "FastGaussQuadrature",
         "Optim",
         "GLM",
-        "CategoricalArrays"
+        "CategoricalArrays",
     ]
     if Base.find_package(pkg) === nothing
         Pkg.add(pkg)

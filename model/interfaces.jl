@@ -1,17 +1,18 @@
 mutable struct DistrictAgent
     id::Int
+    zone_id::Int
     name::String
-    level::String
     amenity::Float64
     rent::Float64
     units::Int
+    occupied_units::Int
     mean_income::Float64
     median_income::Float64
 end
 
 mutable struct ResidentAgent
     id::Int
-    quartile::Int
+    type::Int
     utility::Union{Float64, Nothing}
     income::Float64
     target::Union{DistrictAgent, Nothing}
@@ -19,17 +20,26 @@ mutable struct ResidentAgent
 end
 
 mutable struct SegregationModel
-    mean_param::Float64
-    sigma::Float64
-    alpha::Float64
-    beta::Float64
-    P::Float64
-    agent_number::Int
+    utility_alpha::Float64
+    utility_beta::Float64
+    price_change::Float64
+
+    minimum_disposable_income::Float64
+    natural_vacancy_rate::Float64
+
+    number_of_residents::Int
+
+    income_distribution::Function
+
     rng::MersenneTwister
+
     districts::Vector{DistrictAgent}
     residents::Vector{ResidentAgent}
-    mean_income_by_district_group::Dict{String, Float64}
+
+    mean_income_by_zone::Dict{Int, Float64}
+
     model_data::DataFrame
     district_data::DataFrame
+
     step_count::Int
 end

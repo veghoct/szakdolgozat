@@ -3,137 +3,90 @@ median_or_nan(xs) = isempty(xs) ? NaN : median(xs)
 
 function empty_model_data()
     DataFrame(
-        Step = Int[],
+        step = Int[],
     )
 end
 
 function empty_district_data()
     DataFrame(
-        Step = Int[],
-        AgentID = Int[],
+        step = Int[],
+        id = Int[],
+        zone_id = Int[],
         district = String[],
-        level = String[],
         rent = Float64[],
-        agent_uid = String[],
+        vacancy_rate = Float64[],
     )
-end
-
-function SegregationModel(mean_param, sigma, alpha, beta, P, residents, districts_df::DataFrame, seed = nothing)
-    rng = seed === nothing ? MersenneTwister() : MersenneTwister(seed)
-
-    districts = DistrictAgent[]
-    for (idx, row) in enumerate(eachrow(districts_df))
-        push!(districts, DistrictAgent(
-            idx,
-            String(row[:name]),
-            String(row[:level]),
-            Float64(row[:amenity]),
-            Float64(row[:rent]),
-            Int(row[:units]),
-            NaN,
-            NaN,
-        ))
-    end
-
-    district_agents = sort(copy(districts), by = d -> d.amenity)
-
-    homes = DistrictAgent[]
-    for d in district_agents
-        for _ in 1:d.units
-            push!(homes, d)
-        end
-    end
-    shuffle!(rng, homes)
-
-    mu = Float64(log(mean_param) - 0.5 * (sigma^2))
-    incomes = exp.(mu .+ Float64(sigma) .* randn(rng, Int(residents)))
-
-    resident_agents = ResidentAgent[]
-    for i in 1:Int(residents)
-        push!(resident_agents, ResidentAgent(i, 0, nothing, Float64(incomes[i]), nothing, homes[i]))
-    end
-
-    model = SegregationModel(
-        Float64(mean_param),
-        Float64(sigma),
-        Float64(alpha),
-        Float64(beta),
-        Float64(P),
-        Int(residents),
-        rng,
-        districts,
-        resident_agents,
-        Dict{String, Float64}(),
-        empty_model_data(),
-        empty_district_data(),
-        0,
-    )
-
-    return model
 end
 
 function collect_data!(model::SegregationModel)
     push!(model.model_data, (
-        Step = model.step_count,
+        step = model.step_count,
     ))
 
     for district in model.districts
         push!(model.district_data, (
-            Step = model.step_count,
-            AgentID = district.id,
+            step = model.step_count,
+            id = district.id,
+            zone_id = district.zone_id,
             district = district.name,
-            level = district.level,
             rent = district.rent,
-            agent_uid = "$(district.name):$(district.level)",
+            vacancy_rate = 1 - district.occupied_units / district.units,
         ))
     end
 
     return nothing
 end
 
-function move_attempt_by_utility!(resident::ResidentAgent, model::SegregationModel)
-    alpha = model.alpha
-    beta = model.beta
+function residential_choice_by_utility!(resident::ResidentAgent, model::SegregationModel)
+    alpha = model.utility_alpha
+    beta = model.utility_beta
 
-    affordable_blocks = [d for d in model.districts if d.rent / resident.income < 0.5]
+    affordable_markets = [
+            d for d in model.districts
+            if (resident.income - d.rent) > model.minimum_disposable_income &&
+            ((d.units - d.occupied_units) > 0 || resident.home === d)
+        ]
 
-    function utility(block::DistrictAgent)
-        status = model.mean_income_by_district_group[block.name]
-        return alpha * log(resident.income - block.rent) +
-               (1 - alpha) * (1 - beta) * log(block.amenity) +
-               (1 - alpha) * beta * log(status)
+    function utility(market::DistrictAgent)
+        status = model.mean_income_by_zone[market.zone_id]
+        return (1 - alpha) * log(resident.income - market.rent) +
+               alpha * (1 - beta) * log(market.amenity) +
+               alpha * beta * log(status)
     end
 
-    sort!(affordable_blocks, by = utility)
+    sort!([affordable_markets], by = utility)
 
-    if isempty(affordable_blocks)
+    if isempty(affordable_markets)
         return nothing
     end
 
-    highest_utility_block = pop!(affordable_blocks)
+    highest_utility_market = pop!(affordable_markets)
 
-    if highest_utility_block === resident.home
+    if highest_utility_market === resident.home
         return nothing
     end
 
-    resident.target = highest_utility_block
+    resident.target = highest_utility_market
+
     return nothing
 end
 
-function auction!(district::DistrictAgent, model::SegregationModel)
-    current_residents = [a for a in model.residents if a.home === district]
+function auction_and_move_attempt!(district::DistrictAgent, model::SegregationModel)
     prospective_residents = sort(
         [a for a in model.residents if a.target === district],
         by = r -> r.income,
     )
 
-    available = district.units - length(current_residents)
+    leaving_residents = [a for a in model.residents if a.home === district && a.target !== nothing]
 
-    while available > 0 && !isempty(prospective_residents)
+    while district.units - district.occupied_units > 0 && !isempty(prospective_residents)
         moving_resident = pop!(prospective_residents)
-        moving_resident.home = moving_resident.target::DistrictAgent
+
+        moving_resident.home.occupied_units -= 1
+        moving_resident.target.occupied_units += 1
+
+        moving_resident.home = moving_resident.target
         moving_resident.target = nothing
-        available -= 1
     end
 
     for resident in prospective_residents
@@ -144,28 +97,60 @@ function auction!(district::DistrictAgent, model::SegregationModel)
 end
 
 function rent_hike!(district::DistrictAgent, model::SegregationModel)
-    current_residents = [a for a in model.residents if a.home === district]
-    vacancy_rate = 1 - length(current_residents) / district.units
+    vacancy_rate = 1 - (district.occupied_units / district.units)
 
-    if vacancy_rate > 0.05
-      district.rent *= 0.95
+    if vacancy_rate > model.natural_vacancy_rate
+      district.rent *= (1 - model.price_change)
     end
 
-    if vacancy_rate < 0.05
-      district.rent *= 1.05
+    if vacancy_rate < model.natural_vacancy_rate
+      district.rent *= (1 + model.price_change)
     end
 end
 
 function remove_and_replace_late_agents!(model::SegregationModel)
+    filter!(model.residents) do resident
+
+        isAnyAffordable = false
+        for district in model.districts
+            if district.rent <= (resident.income - model.minimum_disposable_income)
+                isAnyAffordable = true
+                break
+            end
+        end
+
+        if (isAnyAffordable === false)
+            resident.home.occupied_units -= 1
+        end
+
+        return isAnyAffordable
+    end
+
+    for _ in 1:(model.number_of_residents - length(model.residents))
+        income = model.income_distribution(model.rng)
+
+        available_markets = [d for d in model.districts if (income - d.rent) > model.minimum_disposable_income && (d.units - d.occupied_units) > 0]
+        
+        if (length(available_markets) === 0)
+            continue
+        end
+
+        district = rand(available_markets)
+
+        resident = ResidentAgent(0, 0, nothing, income, nothing, district)
+
+        push!(model.residents, resident)
+    end
+
     return nothing
 end
 
 function calculate_district_group_mean_income!(model::SegregationModel)
-    empty!(model.mean_income_by_district_group)
+    empty!(model.mean_income_by_zone)
 
     for district in model.districts
-        incomes = [a.income for a in model.residents if a.home.name == district.name]
-        model.mean_income_by_district_group[district.name] = mean_or_nan(incomes)
+        incomes = [a.income for a in model.residents if a.home.zone_id == district.zone_id]
+        model.mean_income_by_zone[district.zone_id] = mean_or_nan(incomes)
     end
 
     return nothing
@@ -177,11 +162,11 @@ function step!(model::SegregationModel)
     calculate_district_group_mean_income!(model)
 
     for resident in model.residents
-        move_attempt_by_utility!(resident, model)
+        residential_choice_by_utility!(resident, model)
     end
     
     for district in model.districts
-        auction!(district, model)
+        auction_and_move_attempt!(district, model)
     end
 
     for district in model.districts
@@ -195,9 +180,74 @@ function step!(model::SegregationModel)
     return nothing
 end
 
+function SegregationModel(
+        income_distribution,
+        utility_alpha,
+        utility_beta,
+        price_change,
+        minimum_disposable_income,
+        number_of_residents,
+        districts_df::DataFrame,
+        seed = nothing
+    )
+
+    rng = seed === nothing ? MersenneTwister() : MersenneTwister(seed)
+
+    districts = DistrictAgent[]
+    for (idx, row) in enumerate(eachrow(districts_df))
+        push!(districts, DistrictAgent(
+            row[:id],
+            row[:zone_id],
+            String(row[:name]),
+            Float64(row[:amenity]),
+            Float64(row[:rent]),
+            Int(row[:units]),
+            0,
+            NaN,
+            NaN,
+        ))
+    end
+
+    homes = DistrictAgent[]
+    for d in copy(districts)
+        for _ in 1:d.units
+            push!(homes, d)
+        end
+    end
+    shuffle!(rng, homes)
+
+    residents = ResidentAgent[]
+    for i in 1:Int(number_of_residents)
+        homes[i].occupied_units += 1
+        push!(residents, ResidentAgent(i, 0, nothing, income_distribution(rng), nothing, homes[i]))
+    end
+
+    natural_vacancy_rate = 1 - number_of_residents / length(homes)
+
+    model = SegregationModel(
+        Float64(utility_alpha),
+        Float64(utility_beta),
+        Float64(price_change),
+        Float64(minimum_disposable_income),
+        Float64(natural_vacancy_rate),
+        Int(number_of_residents),
+        income_distribution,
+        rng,
+        districts,
+        residents,
+        Dict{String, Float64}(),
+        empty_model_data(),
+        empty_district_data(),
+        0,
+    )
+
+    return model
+end
+
 function run_for!(model::SegregationModel, steps::Integer)
     for _ in 1:steps
         step!(model)
     end
+
     return model
 end
