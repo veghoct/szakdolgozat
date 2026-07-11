@@ -310,6 +310,7 @@ fits = [fit_ln, fit_dagum, fit_sm, fit_gb2]
 for fit in fits
     println()
     println(fit.distribution)
+    println("Params:", fit)
     println("RMSE log: ", fit.rmse_log)
     println("Objective: ", fit.objective)
     println("Fitted decile means:")
