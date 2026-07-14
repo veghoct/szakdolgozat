@@ -24,7 +24,7 @@ mutable struct SegregationModel
     utility_beta::Float64
     price_change::Float64
 
-    minimum_disposable_income::Float64
+    affordability_rate::Float64
     natural_vacancy_rate::Float64
 
     number_of_residents::Int

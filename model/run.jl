@@ -23,12 +23,12 @@ function run_once(run_id; steps = 5000)
             "3. Zóna - Luxus"
         ],
         amenity = [
-            170,
-            600,
-            130,
-            400,
-            150,
-            560
+            1.7,
+            6,
+            1.3,
+            4,
+            1.5,
+            5.
         ],
         rent = [
             100,
@@ -52,7 +52,7 @@ function run_once(run_id; steps = 5000)
     utility_beta = 0.14
     price_change = 0.098
 
-    minimum_disposable_income = 0
+    affordability_rate = 0.5
     number_of_households = 799
 
     model = SegregationModel(
@@ -60,9 +60,10 @@ function run_once(run_id; steps = 5000)
             utiltiy_alpha,
             utility_beta,
             price_change,
-            minimum_disposable_income,
+            affordability_rate,
             number_of_households,
-            districts
+            districts,
+            run_id
         )
 
     run_for!(model, steps)

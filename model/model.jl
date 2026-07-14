@@ -43,7 +43,7 @@ function residential_choice_by_utility!(resident::ResidentAgent, model::Segregat
 
     affordable_markets = [
             d for d in model.districts
-            if (resident.income - d.rent) > model.minimum_disposable_income &&
+            if (d.rent / resident.income) < model.affordability_rate &&
             ((d.units - d.occupied_units) > 0 || resident.home === d)
         ]
 
@@ -113,7 +113,7 @@ function remove_and_replace_late_agents!(model::SegregationModel)
 
         isAnyAffordable = false
         for district in model.districts
-            if district.rent <= (resident.income - model.minimum_disposable_income)
+            if district.rent / resident.income < model.affordability_rate
                 isAnyAffordable = true
                 break
             end
@@ -129,7 +129,7 @@ function remove_and_replace_late_agents!(model::SegregationModel)
     for _ in 1:(model.number_of_residents - length(model.residents))
         income = model.income_distribution(model.rng)
 
-        available_markets = [d for d in model.districts if (income - d.rent) > model.minimum_disposable_income && (d.units - d.occupied_units) > 0]
+        available_markets = [d for d in model.districts if (d.rent / income) < model.affordability_rate && (d.units - d.occupied_units) > 0]
         
         if (length(available_markets) === 0)
             continue
@@ -138,6 +138,8 @@ function remove_and_replace_late_agents!(model::SegregationModel)
         district = rand(available_markets)
 
         resident = ResidentAgent(0, 0, nothing, income, nothing, district)
+
+        resident.home.occupied_units += 1
 
         push!(model.residents, resident)
     end
@@ -185,7 +187,7 @@ function SegregationModel(
         utility_alpha,
         utility_beta,
         price_change,
-        minimum_disposable_income,
+        affordability_rate,
         number_of_residents,
         districts_df::DataFrame,
         seed = nothing
@@ -228,7 +230,7 @@ function SegregationModel(
         Float64(utility_alpha),
         Float64(utility_beta),
         Float64(price_change),
-        Float64(minimum_disposable_income),
+        Float64(affordability_rate),
         Float64(natural_vacancy_rate),
         Int(number_of_residents),
         income_distribution,
