@@ -2,6 +2,37 @@ include("../util/imports.jl")
 
 df = CSV.read(joinpath(@__DIR__, "..", ".localrw", "budapest_ingatlanok_kiado_transzformalt_2020_index.csv"), DataFrame, header = true)
 
+# -----------------------------
+# 1. Not clustering at all.
+# -----------------------------
+
+affordability_rate = 0.5
+median_monthly_household_income = (341768 + 390438) / 2 / 1000
+df.is_premium = df.price_in_2020_index .> median_monthly_household_income * affordability_rate
+
+println("Cutoff: ", median_monthly_household_income * affordability_rate)
+
+for i in 1:3
+    below_filtered = filter([:kmeans_cluster, :is_premium] => (c, p) -> c == i && p == false, df)
+    above_filtered = filter([:kmeans_cluster, :is_premium] => (c, p) -> c == i && p == true, df)
+
+    println("\nHouses below and above affordability rate for cluster: ", i)
+    println("Below num: ", length(below_filtered.price_in_2020_index))
+    println("Below avg: ", mean(below_filtered.price_in_2020_index))
+    println("Below median: ", median(below_filtered.price_in_2020_index))
+    println("Above num: ", length(above_filtered.price_in_2020_index))
+    println("Above avg: ", mean(above_filtered.price_in_2020_index))
+    println("Above median: ", median(above_filtered.price_in_2020_index))
+
+    println()
+end
+
+exit()
+
+# -----------------------------
+# 2. Clustering
+# -----------------------------
+
 zone_cluster = !isempty(ARGS) ? parse(Int, ARGS[1]) : 1
 
 filtered_df = filter(:kmeans_cluster => ==(zone_cluster), df)
@@ -14,6 +45,7 @@ Z = (X .- mean(X, dims = 1)) ./ std(X, dims = 1)
 
 # Clustering.jl expects observations in columns
 Z_t = permutedims(Z)
+
 
 # -----------------------------
 # 3A. K-means clustering
