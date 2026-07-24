@@ -15,16 +15,21 @@ println("Cutoff: ", median_monthly_household_income * affordability_rate)
 for i in 1:3
     below_filtered = filter([:kmeans_cluster, :is_premium] => (c, p) -> c == i && p == false, df)
     above_filtered = filter([:kmeans_cluster, :is_premium] => (c, p) -> c == i && p == true, df)
+    number_of_houses_in_zone = (length(below_filtered.price_in_2020_index) + length(above_filtered.price_in_2020_index))
 
     println("\nHouses below and above affordability rate for cluster: ", i)
     println("Below num: ", length(below_filtered.price_in_2020_index))
-    println("Below avg: ", mean(below_filtered.price_in_2020_index))
+    #println("Below avg: ", mean(below_filtered.price_in_2020_index))
     println("Below median: ", median(below_filtered.price_in_2020_index))
     println("Above num: ", length(above_filtered.price_in_2020_index))
-    println("Above avg: ", mean(above_filtered.price_in_2020_index))
+    #println("Above avg: ", mean(above_filtered.price_in_2020_index))
     println("Above median: ", median(above_filtered.price_in_2020_index))
 
-    println()
+    println("\nBelow share: ", length(below_filtered.price_in_2020_index) / number_of_houses_in_zone)
+    println("Above share: ", length(above_filtered.price_in_2020_index) / number_of_houses_in_zone)
+    println("Total share: ", number_of_houses_in_zone / length(df.price_in_2020_index))
+
+    println(first(above_filtered, 1))
 end
 
 exit()
