@@ -355,7 +355,6 @@ end
 
 println("Actual data:")
 println(monthly_income_per_household)
-exit()
 
 # -----------------------------
 # Plots
@@ -433,12 +432,180 @@ function plot_distribution(fit, y_obs; savepath=nothing)
     return p
 end
 
-plot_fit(fit_ln, monthly_income_per_household, savepath=".figures/income/ln.svg")
-plot_fit(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum.svg")
-plot_fit(fit_sm, monthly_income_per_household, savepath=".figures/income/sm.svg")
-plot_fit(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2.svg")
+#plot_fit(fit_ln, monthly_income_per_household, savepath=".figures/income/ln.svg")
+#plot_fit(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum.svg")
+#plot_fit(fit_sm, monthly_income_per_household, savepath=".figures/income/sm.svg")
+#plot_fit(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2.svg")
+#
+#plot_distribution(fit_ln, monthly_income_per_household, savepath=".figures/income/ln_dist.svg")
+#plot_distribution(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum_dis.svg")
+#plot_distribution(fit_sm, monthly_income_per_household, savepath=".figures/income/sm_dist.svg")
+#plot_distribution(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2_dist.svg")
 
-plot_distribution(fit_ln, monthly_income_per_household, savepath=".figures/income/ln_dist.svg")
-plot_distribution(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum_dis.svg")
-plot_distribution(fit_sm, monthly_income_per_household, savepath=".figures/income/sm_dist.svg")
-plot_distribution(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2_dist.svg")
+# ============================================================
+# 1. Income generator
+# ============================================================
+
+_open_unit_interval(rng::AbstractRNG) = clamp(rand(rng), nextfloat(0.0), prevfloat(1.0))
+
+
+# ============================================================
+# 1. Lognormal
+# ============================================================
+
+function rand_lognormal_income(rng::AbstractRNG, fit)
+    fit.σ > 0 || throw(ArgumentError("σ must be positive"))
+
+    return rand(rng, LogNormal(fit.μ, fit.σ))
+end
+
+rand_lognormal_income(fit) = rand_lognormal_income(Random.default_rng(), fit)
+
+
+# ============================================================
+# 2. Dagum
+# ============================================================
+
+function rand_dagum_income(rng::AbstractRNG, fit)
+    fit.a > 0 || throw(ArgumentError("a must be positive"))
+    fit.b > 0 || throw(ArgumentError("b must be positive"))
+    fit.p > 0 || throw(ArgumentError("p must be positive"))
+
+    u = _open_unit_interval(rng)
+
+    return fit.b * (u^(-1 / fit.p) - 1)^(-1 / fit.a)
+end
+
+rand_dagum_income(fit) = rand_dagum_income(Random.default_rng(), fit)
+
+
+# ============================================================
+# 3. Singh–Maddala / Burr XII
+# ============================================================
+
+function rand_singh_maddala_income(rng::AbstractRNG, fit)
+    fit.a > 0 || throw(ArgumentError("a must be positive"))
+    fit.b > 0 || throw(ArgumentError("b must be positive"))
+    fit.q > 0 || throw(ArgumentError("q must be positive"))
+
+    u = _open_unit_interval(rng)
+
+    return fit.b * ((1 - u)^(-1 / fit.q) - 1)^(1 / fit.a)
+end
+
+rand_singh_maddala_income(fit) = rand_singh_maddala_income(Random.default_rng(), fit)
+
+
+# ============================================================
+# 4. Generalized Beta of the Second Kind (GB2)
+# ============================================================
+
+
+function rand_gb2_income(rng::AbstractRNG, fit)
+    fit.a > 0 || throw(ArgumentError("a must be positive"))
+    fit.b > 0 || throw(ArgumentError("b must be positive"))
+    fit.p > 0 || throw(ArgumentError("p must be positive"))
+    fit.q > 0 || throw(ArgumentError("q must be positive"))
+
+    z = rand(rng, Beta(fit.p, fit.q))
+    z = clamp(z, nextfloat(0.0), prevfloat(1.0))
+
+    return fit.b * (z / (1 - z))^(1 / fit.a)
+end
+
+rand_gb2_income(fit) = rand_gb2_income(Random.default_rng(), fit)
+
+
+# ============================================================
+# Unified interface
+# ============================================================
+
+function rand_income(rng::AbstractRNG, fit)
+    if fit.distribution == "Lognormal"
+        return rand_lognormal_income(rng, fit)
+
+    elseif fit.distribution == "Dagum"
+        return rand_dagum_income(rng, fit)
+
+    elseif fit.distribution == "Singh-Maddala"
+        return rand_singh_maddala_income(rng, fit)
+
+    elseif fit.distribution == "GB2"
+        return rand_gb2_income(rng, fit)
+
+    else
+        throw(ArgumentError(
+            "Unknown income distribution: $(fit.distribution)"
+        ))
+    end
+end
+
+rand_income(fit) = rand_income(Random.default_rng(), fit)
+
+function rand_income(rng::AbstractRNG, fit, n::Integer)
+    return [rand_income(rng, fit) for _ in 1:n]
+end
+
+rand_income(fit, n::Integer) = rand_income(Random.default_rng(), fit, n)
+
+rand_income_int(rng::AbstractRNG, fit) = round(Int, rand_income(rng, fit))
+
+rand_income_int(fit) = rand_income_int(Random.default_rng(), fit)
+
+rand_income_int(rng::AbstractRNG, fit, n::Integer) = round.(Int, rand_income(rng, fit, n))
+
+rand_income_int(fit, n::Integer) = rand_income_int(Random.default_rng(), fit, n)
+
+
+# -----------------------------
+# GINI
+# -----------------------------
+
+function gini(incomes::AbstractVector{<:Real})
+    n = length(incomes)
+
+    n == 1 && return 0.0
+
+    sorted_incomes = sort(Float64.(incomes))
+    total_income = sum(sorted_incomes)
+
+    total_income > 0 ||
+        throw(ArgumentError("At least one income must be positive"))
+
+    weighted_sum = sum(
+        i * income for (i, income) in enumerate(sorted_incomes)
+    )
+
+    return (
+        2 * weighted_sum / (n * total_income)
+        - (n + 1) / n
+    )
+end
+
+function simulated_gini(rng::AbstractRNG, fit; n::Integer = 1_000_000)
+    incomes = rand_income(rng, fit, n)
+
+    return gini(incomes)
+end
+
+simulated_gini(fit; n::Integer = 1_000_000) = simulated_gini(Random.default_rng(), fit; n = n)
+
+function gini_for_all_fits(rng::AbstractRNG, fits; n::Integer = 1_000_000)
+    return [
+        (
+            distribution = fit.distribution,
+            gini = simulated_gini(rng, fit; n = n),
+            sample_size = n,
+        )
+        for fit in fits
+    ]
+end
+
+gini_for_all_fits(fits; n::Integer = 1_000_000) = gini_for_all_fits(Random.default_rng(), fits; n = n)
+
+gini_results = gini_for_all_fits(fits)
+
+println(gini_results)
+for result in gini_results
+    println(rpad(result.distribution, 16), " Gini = ", round(result.gini; digits = 5))
+end
