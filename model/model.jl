@@ -37,121 +37,63 @@ function collect_data!(model::SegregationModel)
     return nothing
 end
 
-function residential_choice_by_utility!(resident::ResidentAgent, model::SegregationModel)
+function preference_list(resident::ResidentAgent, model::SegregationModel)
     alpha = model.utility_alpha
     beta = model.utility_beta
 
-    affordable_markets = [
-            d for d in model.districts
-            if (d.rent / resident.income) < model.affordability_rate &&
-            ((d.units - d.occupied_units) > 0 || resident.home === d)
-        ]
+    function utility(district::DistrictAgent)
+        status = model.mean_income_by_zone[district.zone_id]
 
-    function utility(market::DistrictAgent)
-        status = model.mean_income_by_zone[market.zone_id]
-        return (1 - alpha) * log(resident.income - market.rent) +
-               alpha * (1 - beta) * log(market.amenity) +
+        return (1 - alpha) * log(resident.income - district.rent) +
+               alpha * (1 - beta) * log(district.amenity) +
                alpha * beta * log(status)
     end
 
-    sort!([affordable_markets], by = utility)
+    affordable = [district for district in model.districts if district.rent / resident.income <= model.affordability_rate]
+    unaffordable = [district for district in model.districts if district.rent / resident.income > model.affordability_rate]
 
-    if isempty(affordable_markets)
-        return nothing
-    end
+    sort!(affordable, by = utility, rev = true)
+    sort!(unaffordable, by = district -> district.rent)
 
-    highest_utility_market = pop!(affordable_markets)
-
-    if highest_utility_market === resident.home
-        return nothing
-    end
-
-    resident.target = highest_utility_market
-
-    return nothing
+    return vcat(affordable, unaffordable)
 end
 
-function auction_and_move_attempt!(district::DistrictAgent, model::SegregationModel)
-    prospective_residents = sort(
-        [a for a in model.residents if a.target === district],
-        by = r -> r.income,
-    )
+function multi_round_matching(model::SegregationModel)
+    for resident in sort(model.residents, by = r -> r.income)
+        targets = preference_list(resident, model)
 
-    leaving_residents = [a for a in model.residents if a.home === district && a.target !== nothing]
+        while !isempty(targets)
+            target = popfirst!(targets)
 
-    while district.units - district.occupied_units > 0 && !isempty(prospective_residents)
-        moving_resident = pop!(prospective_residents)
+            if (target === resident.home)
+                break
+            end
 
-        moving_resident.home.occupied_units -= 1
-        moving_resident.target.occupied_units += 1
+            if (target.units === target.occupied_units)
+                continue
+            end
 
-        moving_resident.home = moving_resident.target
-        moving_resident.target = nothing
+            target.occupied_units += 1
+            resident.home.occupied_units -= 1
+            resident.home = target
+            break
+        end
     end
-
-    for resident in prospective_residents
-        resident.target = nothing
-    end
-
-    return nothing
 end
 
 function rent_hike!(district::DistrictAgent, model::SegregationModel)
-    vacancy_rate = 1 - (district.occupied_units / district.units)
+    target_occupied = (1 - model.natural_vacancy_rate) * district.units
 
-    if vacancy_rate > model.natural_vacancy_rate
-      district.rent *= (1 - model.price_change)
-    end
-
-    if vacancy_rate < model.natural_vacancy_rate
-      district.rent *= (1 + model.price_change)
-    end
-end
-
-function remove_and_replace_late_agents!(model::SegregationModel)
-    filter!(model.residents) do resident
-
-        isAnyAffordable = false
-        for district in model.districts
-            if district.rent / resident.income < model.affordability_rate
-                isAnyAffordable = true
-                break
-            end
-        end
-
-        if (isAnyAffordable === false)
-            resident.home.occupied_units -= 1
-        end
-
-        return isAnyAffordable
-    end
-
-    for _ in 1:(model.number_of_residents - length(model.residents))
-        income = model.income_distribution(model.rng)
-
-        available_markets = [d for d in model.districts if (d.rent / income) < model.affordability_rate && (d.units - d.occupied_units) > 0]
-        
-        if (length(available_markets) === 0)
-            continue
-        end
-
-        district = rand(available_markets)
-
-        resident = ResidentAgent(0, 0, nothing, income, nothing, district)
-
-        resident.home.occupied_units += 1
-
-        push!(model.residents, resident)
-    end
-
-    return nothing
+    occupancy_gap = (district.occupied_units - target_occupied) / district.units
+    
+    district.rent *= (1 + model.price_change)^occupancy_gap
 end
 
 function calculate_district_group_mean_income!(model::SegregationModel)
     empty!(model.mean_income_by_zone)
 
     for district in model.districts
-        incomes = [a.income for a in model.residents if a.home.zone_id == district.zone_id]
+        incomes = [a.income for a in model.residents if a.home !== nothing && a.home.zone_id == district.zone_id]
         model.mean_income_by_zone[district.zone_id] = mean_or_nan(incomes)
     end
 
@@ -162,22 +104,14 @@ function step!(model::SegregationModel)
     model.step_count += 1
 
     calculate_district_group_mean_income!(model)
-
-    for resident in model.residents
-        residential_choice_by_utility!(resident, model)
-    end
     
-    for district in model.districts
-        auction_and_move_attempt!(district, model)
-    end
+    multi_round_matching(model)
 
     for district in model.districts
         rent_hike!(district, model)
     end
 
     collect_data!(model)
-
-    remove_and_replace_late_agents!(model)
 
     return nothing
 end
@@ -221,7 +155,7 @@ function SegregationModel(
     residents = ResidentAgent[]
     for i in 1:Int(number_of_residents)
         homes[i].occupied_units += 1
-        push!(residents, ResidentAgent(i, 0, nothing, income_distribution(rng), nothing, homes[i]))
+        push!(residents, ResidentAgent(i, 0, nothing, income_distribution(rng), nothing, [], homes[i]))
     end
 
     natural_vacancy_rate = 1 - number_of_residents / length(homes)

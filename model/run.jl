@@ -2,12 +2,62 @@ include("../util/imports.jl")
 include("interfaces.jl")
 include("model.jl")
 
+# Avoid evaluating inverse CDF formulas exactly at 0 or 1
+function open_unit_random(rng)
+    return clamp(rand(rng), nextfloat(0.0), prevfloat(1.0))
+end
+
+
 function lognormal_distribution(rng)
-    u = rand(rng)
+    u = open_unit_random(rng)
+
     mu = 12.584991083577634
     sigma = 0.5457737566188
 
-    return round(exp(mu + sigma * quantile(Normal(), u)) / 1000)
+    income = exp(mu + sigma * quantile(Normal(), u))
+
+    return round(income / 1000)
+end
+
+
+function dagum_distribution(rng)
+    u = open_unit_random(rng)
+
+    a = 3.6096943927208094
+    b = 402994.56509825075
+    p = 0.7713443751258857
+
+    income = b * (u^(-1 / p) - 1)^(-1 / a)
+
+    return round(income / 1000)
+end
+
+
+function singh_maddala_distribution(rng)
+    u = open_unit_random(rng)
+
+    a = 2.9793276391217565
+    b = 410377.5624011284
+    q = 1.3168477922529758
+
+    income = b * ((1 - u)^(-1 / q) - 1)^(1 / a)
+
+    return round(income / 1000)
+end
+
+
+function gb2_distribution(rng)
+    u = open_unit_random(rng)
+
+    a = 3.1062231709020507
+    b = 408872.1438747776
+    p = 0.9429998373808317
+    q = 1.238925941658504
+
+    z = quantile(Beta(p, q), u)
+    income = b * (z / (1 - z))^(1 / a)
+
+    return round(income / 1000)
 end
 
 function run_once(run_id; steps = 5000)
@@ -23,12 +73,12 @@ function run_once(run_id; steps = 5000)
             "3. Zóna - Luxus"
         ],
         amenity = [
-            1.7,
-            6,
-            1.3,
-            4,
-            1.5,
-            5.
+            3.4,
+            7,
+            3,
+            5.20,
+            2.40,
+            4.60,
         ],
         rent = [
             100,
@@ -36,27 +86,27 @@ function run_once(run_id; steps = 5000)
             100,
             100,
             100,
-            100
+            100,
         ],
         units = [
-            215,
-            74,
-            182,
-            8,
-            464,
-            16
+            142,
+            150,
+            363,
+            117,
+            170,
+            20,
         ],
     )
 
-    utiltiy_alpha = 0.40
+    utiltiy_alpha = 0.4
     utility_beta = 0.14
-    price_change = 0.098
+    price_change = 0.098 #yearly
 
     affordability_rate = 0.5
     number_of_households = 799
 
     model = SegregationModel(
-            lognormal_distribution,
+            gb2_distribution,
             utiltiy_alpha,
             utility_beta,
             price_change,
@@ -74,11 +124,11 @@ function run_once(run_id; steps = 5000)
     return agent_data
 end
 
-runs = 100
-steps = 1000
+runs = 10
+steps = 150
 
 all_runs = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...)
-last_100_steps = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...) |> filter(:step => step -> step > 900)
+last_100_steps = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...) |> filter(:step => step -> step > maximum(all_runs.step) - 100)
 
 ci_lower(x) = quantile(x, 0.1)
 ci_upper(x) = quantile(x, 0.9)
@@ -98,26 +148,28 @@ vacancy_rate_by_market = combine(groupby(all_runs, [:step, :id]),
 println(combine(groupby(last_100_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
 println(combine(groupby(last_100_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
 
-#plot(
-    #vacancy_rate_by_market.step,
-    #vacancy_rate_by_market.vacancy_rate_mean,
-    #group = vacancy_rate_by_market.id,
-    #xlabel = "Step",
-    #ylabel = "Vacancy rate",
-    #title = "Vacancy rate over time",
-    #size = (900, 500),
-#)
-#
-#savefig("vacancy_rate.svg")
-#
-#plot(
-    #rent_by_market.step,
-    #rent_by_market.rent_mean,
-    #group = rent_by_market.id,
-    #xlabel = "Step",
-    #ylabel = "Rent",
-    #title = "Rent over time",
-    #size = (900, 500),
-#)
-#
-#savefig("rent.svg")
+exit()
+
+plot(
+    vacancy_rate_by_market.step,
+    vacancy_rate_by_market.vacancy_rate_mean,
+    group = vacancy_rate_by_market.id,
+    xlabel = "Step",
+    ylabel = "Vacancy rate",
+    title = "Vacancy rate over time",
+    size = (900, 500),
+)
+
+savefig("vacancy_rate.svg")
+
+plot(
+    rent_by_market.step,
+    rent_by_market.rent_mean,
+    group = rent_by_market.id,
+    xlabel = "Step",
+    ylabel = "Rent",
+    title = "Rent over time",
+    size = (900, 500),
+)
+
+savefig("rent.svg")

@@ -16,7 +16,8 @@ mutable struct ResidentAgent
     utility::Union{Float64, Nothing}
     income::Float64
     target::Union{DistrictAgent, Nothing}
-    home::DistrictAgent
+    targets::Vector{DistrictAgent}
+    home::Union{DistrictAgent, Nothing}
 end
 
 mutable struct SegregationModel

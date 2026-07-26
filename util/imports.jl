@@ -11,6 +11,7 @@ for pkg in [
         "Optim",
         "GLM",
         "CategoricalArrays",
+        "QuasiMonteCarlo",
     ]
     if Base.find_package(pkg) === nothing
         Pkg.add(pkg)
@@ -31,4 +32,5 @@ using GLM
 using Optim
 using Distributions
 using FastGaussQuadrature
-using CategoricalArrays 
+using CategoricalArrays
+using QuasiMonteCarlo
