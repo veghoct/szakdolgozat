@@ -74,11 +74,11 @@ function run_once(run_id; steps = 5000)
         ],
         amenity = [
             3.4,
-            7,
+            4,
             3,
-            5.20,
-            2.40,
-            4.60,
+            3.6,
+            2.9,
+            3.2,
         ],
         rent = [
             100,
@@ -98,15 +98,15 @@ function run_once(run_id; steps = 5000)
         ],
     )
 
-    utiltiy_alpha = 0.4
+    utiltiy_alpha = 0.8
     utility_beta = 0.14
     price_change = 0.098 #yearly
 
-    affordability_rate = 0.5
+    affordability_rate = 1
     number_of_households = 799
 
     model = SegregationModel(
-            gb2_distribution,
+            lognormal_distribution,
             utiltiy_alpha,
             utility_beta,
             price_change,

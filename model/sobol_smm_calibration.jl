@@ -31,7 +31,6 @@ const LOWER_BOUNDS = [
     1.0,
     1.0,
     1.0,
-    250_000.0,  # lower income scale
 ]
 
 const UPPER_BOUNDS = [
@@ -40,7 +39,6 @@ const UPPER_BOUNDS = [
     10.0,
     10.0,
     10.0,
-    350_000.0,  # upper income scale
 ]
 
 const EMPIRICAL_RENTS = [
@@ -60,8 +58,8 @@ const LOG_INCOME_SIGMA = 0.5457737566188
 # MODEL RUN
 # ============================================================
 
-function run_model(amenities, income_scale, seed)
-    income_distribution(rng) = round(rand(rng, LogNormal(log(income_scale), LOG_INCOME_SIGMA)) / 1_000)
+function run_model(amenities, seed)
+    income_distribution(rng) = round(rand(rng, LogNormal(LOG_INCOME_MU, LOG_INCOME_SIGMA)) / 1_000)
 
     districts = DataFrame(
         id = [1, 2, 3, 4, 5, 6],
@@ -75,16 +73,16 @@ function run_model(amenities, income_scale, seed)
             "3. Zóna - Luxus",
         ],
         amenity = amenities,
-        rent = fill(100.0, 6),
+        rent = [120, 120, 120, 120, 120, 120],
         units = [142, 150, 363, 117, 170, 20],
     )
 
     model = SegregationModel(
         income_distribution,
-        0.4,    # utility_alpha
-        0.14,   # utility_beta
-        0.098,  # price_change
-        0.5,    # affordability_rate
+        0.4026,    # utility_alpha
+        0.1433,   # utility_beta
+        0.0980,  # price_change
+        1,    # affordability_rate
         799,    # number_of_households
         districts,
         seed,
@@ -97,7 +95,7 @@ function run_model(amenities, income_scale, seed)
         model.district_data,
     )
 
-    rent_means = combine(
+    rent_means = combine( 
         groupby(last_steps, :id),
         :rent => mean => :rent_mean,
     )
@@ -108,13 +106,12 @@ function run_model(amenities, income_scale, seed)
 end
 
 
-function simulated_rents(amenities, income_scale)
+function simulated_rents(amenities)
     rents = zeros(6)
 
     for replication in 1:REPLICATIONS
         rents .+= run_model(
             amenities,
-            income_scale,
             BASE_SEED + replication - 1,
         )
     end
@@ -149,11 +146,11 @@ function run_sobol_block()
             θ[5],
         ]
 
-        income_scale = θ[6]
+        model_rents = simulated_rents(amenities)
 
-        model_rents = simulated_rents(amenities, income_scale)
-
-        objective = sum(((model_rents .- EMPIRICAL_RENTS) ./ EMPIRICAL_RENTS) .^ 2)
+        objective_per_diff = sum(((model_rents .- EMPIRICAL_RENTS) ./ EMPIRICAL_RENTS) .^ 2)
+        objective_log_diff = sum((log.(model_rents) .- log.(EMPIRICAL_RENTS)) .^ 2)
+        objective_abs_diff = sum((model_rents .- EMPIRICAL_RENTS) .^ 2)
 
         result = (
             sample_id = sample_id,
@@ -163,14 +160,15 @@ function run_sobol_block()
             amenity_4 = amenities[4],
             amenity_5 = amenities[5],
             amenity_6 = amenities[6],
-            income_scale = income_scale,
             model_rent_1 = model_rents[1],
             model_rent_2 = model_rents[2],
             model_rent_3 = model_rents[3],
             model_rent_4 = model_rents[4],
             model_rent_5 = model_rents[5],
             model_rent_6 = model_rents[6],
-            objective = objective,
+            objective_per_diff = objective_per_diff,
+            objective_log_diff = objective_log_diff,
+            objective_abs_diff = objective_abs_diff,
         )
 
         CSV.write(
@@ -179,12 +177,6 @@ function run_sobol_block()
             append = isfile(OUTPUT_PATH),
         )
 
-        println(
-            "Finished sample ",
-            sample_id,
-            " | objective = ",
-            round(objective; digits = 4),
-        )
     end
 end
 

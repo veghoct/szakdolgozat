@@ -59,7 +59,7 @@ function preference_list(resident::ResidentAgent, model::SegregationModel)
 end
 
 function multi_round_matching(model::SegregationModel)
-    for resident in sort(model.residents, by = r -> r.income)
+    for resident in sort(model.residents, by = r -> r.income, rev = true)
         targets = preference_list(resident, model)
 
         while !isempty(targets)
@@ -82,6 +82,10 @@ function multi_round_matching(model::SegregationModel)
 end
 
 function rent_hike!(district::DistrictAgent, model::SegregationModel)
+    if district.id === 5
+        return nothing
+    end
+
     target_occupied = (1 - model.natural_vacancy_rate) * district.units
 
     occupancy_gap = (district.occupied_units - target_occupied) / district.units
