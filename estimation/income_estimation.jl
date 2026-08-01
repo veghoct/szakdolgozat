@@ -49,6 +49,7 @@ national_incomes = [
 monthly_income_per_household = annual_income_per_person .* 2.3 .* mean(budapest_incomes ./ national_incomes) ./ 12
 monthly_income_per_household = round.(Int, monthly_income_per_household)
 
+exit()
 # -----------------------------
 # Distribution fitting
 # -----------------------------
