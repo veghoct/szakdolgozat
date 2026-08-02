@@ -26,19 +26,19 @@ const OUTPUT_PATH = joinpath(@__DIR__, "../sobol_smm_results.csv")
 const FIXED_AMENITY = 1
 
 const LOWER_BOUNDS = [
-    1.0,   # amenity_1
-    4.0,   # amenity_2
+    1.1,   # amenity_1
+    4.3,   # amenity_2
     1.0,   # amenity_3
-    3.0,   # amenity_4
-    2.5,   # amenity_6
+    3.5,   # amenity_4
+    2.8,   # amenity_6
 ]
 
 const UPPER_BOUNDS = [
-    3.5,   # amenity_1
+    2.35,   # amenity_1
     10.0,  # amenity_2
-    4.0,   # amenity_3
-    10.0,  # amenity_4
-    9.5,   # amenity_6
+    2.5,   # amenity_3
+    6.2,  # amenity_4
+    7.0,   # amenity_6
 ]
 
 const EMPIRICAL_RENTS = [
