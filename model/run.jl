@@ -73,19 +73,19 @@ function run_once(run_id; steps = 5000)
             "3. Zóna - Luxus"
         ],
         amenity = [
-            3.4,
-            4,
-            3,
-            3.6,
-            2.9,
-            3.2,
+            1.2448822021484376,
+            5.355181884765625,
+            1.228973388671875,
+            3.525213623046875,
+            1,
+            3.97586669921875,
         ],
         rent = [
             100,
             100,
             100,
             100,
-            100,
+            120,
             100,
         ],
         units = [
@@ -98,9 +98,9 @@ function run_once(run_id; steps = 5000)
         ],
     )
 
-    utiltiy_alpha = 0.8
-    utility_beta = 0.14
-    price_change = 0.098 #yearly
+    utiltiy_alpha = 0.4026
+    utility_beta = 0.1433
+    price_change = 0.0980
 
     affordability_rate = 1
     number_of_households = 799
@@ -124,11 +124,11 @@ function run_once(run_id; steps = 5000)
     return agent_data
 end
 
-runs = 10
+runs = 100
 steps = 150
 
 all_runs = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...)
-last_100_steps = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...) |> filter(:step => step -> step > maximum(all_runs.step) - 100)
+last_100_steps = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...) |> filter(:step => step -> step > maximum(all_runs.step) - 50)
 
 ci_lower(x) = quantile(x, 0.1)
 ci_upper(x) = quantile(x, 0.9)
@@ -147,8 +147,6 @@ vacancy_rate_by_market = combine(groupby(all_runs, [:step, :id]),
 
 println(combine(groupby(last_100_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
 println(combine(groupby(last_100_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
-
-exit()
 
 plot(
     vacancy_rate_by_market.step,

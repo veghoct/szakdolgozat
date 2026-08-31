@@ -49,7 +49,6 @@ national_incomes = [
 monthly_income_per_household = annual_income_per_person .* 2.3 .* mean(budapest_incomes ./ national_incomes) ./ 12
 monthly_income_per_household = round.(Int, monthly_income_per_household)
 
-exit()
 # -----------------------------
 # Distribution fitting
 # -----------------------------
@@ -433,15 +432,15 @@ function plot_distribution(fit, y_obs; savepath=nothing)
     return p
 end
 
-#plot_fit(fit_ln, monthly_income_per_household, savepath=".figures/income/ln.svg")
-#plot_fit(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum.svg")
-#plot_fit(fit_sm, monthly_income_per_household, savepath=".figures/income/sm.svg")
-#plot_fit(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2.svg")
-#
-#plot_distribution(fit_ln, monthly_income_per_household, savepath=".figures/income/ln_dist.svg")
-#plot_distribution(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum_dis.svg")
-#plot_distribution(fit_sm, monthly_income_per_household, savepath=".figures/income/sm_dist.svg")
-#plot_distribution(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2_dist.svg")
+plot_fit(fit_ln, monthly_income_per_household, savepath=".figures/income/ln.svg")
+plot_fit(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum.svg")
+plot_fit(fit_sm, monthly_income_per_household, savepath=".figures/income/sm.svg")
+plot_fit(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2.svg")
+
+plot_distribution(fit_ln, monthly_income_per_household, savepath=".figures/income/ln_dist.svg")
+plot_distribution(fit_dagum, monthly_income_per_household, savepath=".figures/income/dagum_dis.svg")
+plot_distribution(fit_sm, monthly_income_per_household, savepath=".figures/income/sm_dist.svg")
+plot_distribution(fit_gb2, monthly_income_per_household, savepath=".figures/income/gb2_dist.svg")
 
 # ============================================================
 # 1. Income generator
