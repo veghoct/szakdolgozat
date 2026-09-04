@@ -127,8 +127,12 @@ end
 runs = 100
 steps = 150
 
-all_runs = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...)
-last_100_steps = vcat([run_once(i; steps = steps) for i in 0:(runs - 1)]...) |> filter(:step => step -> step > maximum(all_runs.step) - 50)
+results = Vector{Any}(undef, runs)
+Threads.@threads for i in 0:(runs - 1)
+    results[i + 1] = run_once(i; steps = steps)
+end
+all_runs = vcat(results...)
+last_100_steps = filter(:step => step -> step > maximum(all_runs.step) - 50, all_runs)
 
 ci_lower(x) = quantile(x, 0.1)
 ci_upper(x) = quantile(x, 0.9)
@@ -146,8 +150,8 @@ vacancy_rate_by_market = combine(groupby(all_runs, [:step, :id]),
 )
 
 println(combine(groupby(last_100_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
+exit()
 println(combine(groupby(last_100_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
-
 plot(
     vacancy_rate_by_market.step,
     vacancy_rate_by_market.vacancy_rate_mean,
