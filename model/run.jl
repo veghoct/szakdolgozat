@@ -1,64 +1,7 @@
 include("../util/imports.jl")
 include("interfaces.jl")
 include("model.jl")
-
-# Avoid evaluating inverse CDF formulas exactly at 0 or 1
-function open_unit_random(rng)
-    return clamp(rand(rng), nextfloat(0.0), prevfloat(1.0))
-end
-
-
-function lognormal_distribution(rng)
-    u = open_unit_random(rng)
-
-    mu = 12.584991083577634
-    sigma = 0.5457737566188
-
-    income = exp(mu + sigma * quantile(Normal(), u))
-
-    return round(income / 1000)
-end
-
-
-function dagum_distribution(rng)
-    u = open_unit_random(rng)
-
-    a = 3.6096943927208094
-    b = 402994.56509825075
-    p = 0.7713443751258857
-
-    income = b * (u^(-1 / p) - 1)^(-1 / a)
-
-    return round(income / 1000)
-end
-
-
-function singh_maddala_distribution(rng)
-    u = open_unit_random(rng)
-
-    a = 2.9793276391217565
-    b = 410377.5624011284
-    q = 1.3168477922529758
-
-    income = b * ((1 - u)^(-1 / q) - 1)^(1 / a)
-
-    return round(income / 1000)
-end
-
-
-function gb2_distribution(rng)
-    u = open_unit_random(rng)
-
-    a = 3.1062231709020507
-    b = 408872.1438747776
-    p = 0.9429998373808317
-    q = 1.238925941658504
-
-    z = quantile(Beta(p, q), u)
-    income = b * (z / (1 - z))^(1 / a)
-
-    return round(income / 1000)
-end
+include("distributions.jl")
 
 function run_once(run_id; steps = 5000)
     districts = DataFrame(
@@ -73,12 +16,12 @@ function run_once(run_id; steps = 5000)
             "3. Zóna - Luxus"
         ],
         amenity = [
-            1.2448822021484376,
-            5.355181884765625,
-            1.228973388671875,
-            3.525213623046875,
+            1.30627197265625,
+            5.25037841796875,
+            1.30538818359375,
+            3.57867919921875,
             1,
-            3.97586669921875,
+            3.92484619140625,
         ],
         rent = [
             100,
@@ -132,7 +75,6 @@ Threads.@threads for i in 0:(runs - 1)
     results[i + 1] = run_once(i; steps = steps)
 end
 all_runs = vcat(results...)
-last_100_steps = filter(:step => step -> step > maximum(all_runs.step) - 50, all_runs)
 
 ci_lower(x) = quantile(x, 0.1)
 ci_upper(x) = quantile(x, 0.9)
@@ -149,9 +91,13 @@ vacancy_rate_by_market = combine(groupby(all_runs, [:step, :id]),
     :vacancy_rate => ci_upper => :vacancy_rate_upper
 )
 
-println(combine(groupby(last_100_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
+equilibrium_state_steps = filter(:step => step -> step > maximum(all_runs.step) - 50, all_runs)
+
+println(combine(groupby(equilibrium_state_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
+println(combine(groupby(equilibrium_state_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
+
 exit()
-println(combine(groupby(last_100_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
+
 plot(
     vacancy_rate_by_market.step,
     vacancy_rate_by_market.vacancy_rate_mean,

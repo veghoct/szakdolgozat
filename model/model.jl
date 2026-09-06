@@ -18,6 +18,23 @@ function empty_district_data()
     )
 end
 
+function empty_zone_data()
+    DataFrame(
+        id = Int[],
+        average_income = Float64[],
+        median_income = Float64[],
+        gini = Float64[],
+        dissimilarity_10_90 = Float64[],
+        dissimilarity_25_75 = Float64[],
+        dissimilarity_50 = Float64[],
+        dissimilarity_three_groups = Float64[],
+        exposure_10_90 = Float64[],
+        exposure_25_75 = Float64[],
+        exposure_50 = Float64[],
+        exposure_three_groups = Float64[],
+    )
+end
+
 function collect_data!(model::SegregationModel)
     push!(model.model_data, (
         step = model.step_count,
@@ -178,6 +195,7 @@ function SegregationModel(
         Dict{String, Float64}(),
         empty_model_data(),
         empty_district_data(),
+        empty_zone_data(),
         0,
     )
 

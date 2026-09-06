@@ -41,6 +41,7 @@ mutable struct SegregationModel
 
     model_data::DataFrame
     district_data::DataFrame
+    zone_data::DataFrame
 
     step_count::Int
 end
