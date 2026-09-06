@@ -1,6 +1,7 @@
 include("../util/imports.jl")
 include("interfaces.jl")
 include("model.jl")
+include("segregation.jl")
 include("distributions.jl")
 
 function run_once(run_id; steps = 5000)
@@ -13,7 +14,7 @@ function run_once(run_id; steps = 5000)
             "2. zóna - Hétköznapi",
             "2. Zóna - Luxus",
             "3. zóna - Hétköznapi",
-            "3. Zóna - Luxus"
+            "3. Zóna - Luxus",
         ],
         amenity = [
             1.30627197265625,
@@ -61,40 +62,67 @@ function run_once(run_id; steps = 5000)
 
     run_for!(model, steps)
 
-    agent_data = copy(model.district_data)
-    agent_data.run_id = fill(run_id, nrow(agent_data))
+    district_data = copy(model.district_data)
+    zone_data = copy(model.zone_data)
+    model_data = copy(model.model_data)
 
-    return agent_data
+    district_data.run_id = fill(run_id, nrow(district_data))
+    zone_data.run_id = fill(run_id, nrow(zone_data))
+    model_data.run_id = fill(run_id, nrow(model_data))
+
+    return (district_data = district_data, zone_data = zone_data, model_data = model_data)
 end
 
 runs = 100
 steps = 150
 
-results = Vector{Any}(undef, runs)
+district_data_by_run = Vector{DataFrame}(undef, runs)
+zone_data_by_run = Vector{DataFrame}(undef, runs)
+model_data_by_run = Vector{DataFrame}(undef, runs)
 Threads.@threads for i in 0:(runs - 1)
-    results[i + 1] = run_once(i; steps = steps)
+    result = run_once(i; steps = steps)
+    district_data_by_run[i + 1] = result.district_data
+    zone_data_by_run[i + 1] = result.zone_data
+    model_data_by_run[i + 1] = result.model_data
 end
-all_runs = vcat(results...)
+district_data = vcat(district_data_by_run...)
+zone_data = vcat(zone_data_by_run...)
+model_data = vcat(model_data_by_run...)
 
 ci_lower(x) = quantile(x, 0.1)
 ci_upper(x) = quantile(x, 0.9)
 
-rent_by_market = combine(groupby(all_runs, [:step, :id]), 
+# Segregation indices are NaN when a zone is missing an income group entirely
+# (the index is undefined, not zero); skip those rather than letting mean()
+# propagate a single NaN sample into the whole average.
+nanmean(xs) = (valid = filter(!isnan, xs); isempty(valid) ? NaN : mean(valid))
+
+rent_by_market = combine(groupby(district_data, [:step, :id]), 
     :rent => mean => :rent_mean,
     :rent => ci_lower => :rent_lower,
     :rent => ci_upper => :rent_upper
 )
 
-vacancy_rate_by_market = combine(groupby(all_runs, [:step, :id]), 
+vacancy_rate_by_market = combine(groupby(district_data, [:step, :id]), 
     :vacancy_rate => mean => :vacancy_rate_mean,
     :vacancy_rate => ci_lower => :vacancy_rate_lower,
     :vacancy_rate => ci_upper => :vacancy_rate_upper
 )
 
-equilibrium_state_steps = filter(:step => step -> step > maximum(all_runs.step) - 50, all_runs)
+district_data_eq_state_steps = filter(:step => step -> step > maximum(district_data.step) - 50, district_data)
+zone_data_eq_state_steps = filter(:step => step -> step > maximum(zone_data.step) - 50, zone_data)
+model_data_eq_state_steps = filter(:step => step -> step > maximum(model_data.step) - 50, model_data)
 
-println(combine(groupby(equilibrium_state_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
-println(combine(groupby(equilibrium_state_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
+#println(combine(groupby(district_data_eq_state_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
+#println(combine(groupby(district_data_eq_state_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
+
+println("Mean income stats by zone:")
+println(combine(groupby(zone_data_eq_state_steps, :id), :average_income => nanmean, :median_income => nanmean, :gini => nanmean))
+
+index_cols = names(model_data_eq_state_steps, Not([:step, :run_id]))
+
+println("Mean segregation indices (citywide):")
+println(combine(model_data_eq_state_steps, [col => nanmean => col for col in index_cols]...))
 
 exit()
 

@@ -4,6 +4,18 @@ median_or_nan(xs) = isempty(xs) ? NaN : median(xs)
 function empty_model_data()
     DataFrame(
         step = Int[],
+        dissimilarity_10 = Float64[],
+        dissimilarity_25 = Float64[],
+        dissimilarity_50 = Float64[],
+        dissimilarity_75 = Float64[],
+        dissimilarity_90 = Float64[],
+        dissimilarity_three_groups = Float64[],
+        exposure_10 = Float64[],
+        exposure_25 = Float64[],
+        exposure_50 = Float64[],
+        exposure_75 = Float64[],
+        exposure_90 = Float64[],
+        exposure_three_groups = Float64[],
     )
 end
 
@@ -20,26 +32,15 @@ end
 
 function empty_zone_data()
     DataFrame(
+        step = Int[],
         id = Int[],
         average_income = Float64[],
         median_income = Float64[],
         gini = Float64[],
-        dissimilarity_10_90 = Float64[],
-        dissimilarity_25_75 = Float64[],
-        dissimilarity_50 = Float64[],
-        dissimilarity_three_groups = Float64[],
-        exposure_10_90 = Float64[],
-        exposure_25_75 = Float64[],
-        exposure_50 = Float64[],
-        exposure_three_groups = Float64[],
     )
 end
 
 function collect_data!(model::SegregationModel)
-    push!(model.model_data, (
-        step = model.step_count,
-    ))
-
     for district in model.districts
         push!(model.district_data, (
             step = model.step_count,
@@ -49,6 +50,18 @@ function collect_data!(model::SegregationModel)
             rent = district.rent,
             vacancy_rate = 1 - district.occupied_units / district.units,
         ))
+    end
+
+    all_incomes = [r.income for r in model.residents]
+    lower_tail_cutoffs = Dict(p => percentile_cutoffs(all_incomes, [p / 100]) for p in (10, 25, 50, 75, 90))
+    cutoffs_three_groups = percentile_cutoffs(all_incomes, [1 / 3, 2 / 3])
+
+    push!(model.model_data, model_segregation_row(model, lower_tail_cutoffs, cutoffs_three_groups))
+
+    for zone_id in unique(d.zone_id for d in model.districts)
+        residents = filter(r -> r.home !== nothing && r.home.zone_id == zone_id, model.residents)
+
+        push!(model.zone_data, zone_income_row(zone_id, residents, model.step_count))
     end
 
     return nothing
