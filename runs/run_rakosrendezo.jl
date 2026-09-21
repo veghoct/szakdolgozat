@@ -24,7 +24,7 @@ function run_once(run_id; steps = 5000)
             3.57867919921875,
             1,
             3.92484619140625,
-            3.57867919921875,
+            5.25037841796875,
         ],
         rent = [
             100,
@@ -37,7 +37,7 @@ function run_once(run_id; steps = 5000)
         ],
         units = [
             142,
-            150,
+            151,
             363,
             117,
             170,
@@ -121,7 +121,17 @@ model_data_eq_state_steps = filter(:step => step -> step > maximum(model_data.st
 #println(combine(groupby(district_data_eq_state_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
 
 println("Mean income stats by zone:")
-println(combine(groupby(zone_data_eq_state_steps, :id), :average_income => nanmean, :median_income => nanmean, :gini => nanmean))
+println(combine(
+    groupby(zone_data_eq_state_steps, :id),
+    :average_income => nanmean,
+    :median_income => nanmean,
+    :gini => nanmean,
+    :share_bottom_10 => nanmean,
+    :share_bottom_20 => nanmean,
+    :share_bottom_50 => nanmean,
+    :share_top_20 => nanmean,
+    :share_top_10 => nanmean,
+))
 
 index_cols = names(model_data_eq_state_steps, Not([:step, :run_id]))
 

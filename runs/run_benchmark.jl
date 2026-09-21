@@ -34,7 +34,7 @@ function run_once(run_id; steps = 5000)
         ],
         units = [
             142,
-            150,
+            151,
             363,
             117,
             170,
@@ -113,18 +113,27 @@ district_data_eq_state_steps = filter(:step => step -> step > maximum(district_d
 zone_data_eq_state_steps = filter(:step => step -> step > maximum(zone_data.step) - 50, zone_data)
 model_data_eq_state_steps = filter(:step => step -> step > maximum(model_data.step) - 50, model_data)
 
-#println(combine(groupby(district_data_eq_state_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
-#println(combine(groupby(district_data_eq_state_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
+println(combine(groupby(district_data_eq_state_steps, [:id]), :rent => mean, :rent => ci_lower, :rent => ci_upper))
+
+println(combine(groupby(district_data_eq_state_steps, [:id]), :vacancy_rate => mean, :vacancy_rate => ci_lower, :vacancy_rate => ci_upper))
 
 println("Mean income stats by zone:")
-println(combine(groupby(zone_data_eq_state_steps, :id), :average_income => nanmean, :median_income => nanmean, :gini => nanmean))
+println(combine(
+    groupby(zone_data_eq_state_steps, :id),
+    :average_income => nanmean,
+    :median_income => nanmean,
+    :gini => nanmean,
+    :share_bottom_10 => nanmean,
+    :share_bottom_20 => nanmean,
+    :share_bottom_50 => nanmean,
+    :share_top_20 => nanmean,
+    :share_top_10 => nanmean,
+))
 
 index_cols = names(model_data_eq_state_steps, Not([:step, :run_id]))
 
 println("Mean segregation indices (citywide):")
 println(combine(model_data_eq_state_steps, [col => nanmean => col for col in index_cols]...))
-
-exit()
 
 plot(
     vacancy_rate_by_market.step,
@@ -136,8 +145,6 @@ plot(
     size = (900, 500),
 )
 
-savefig("vacancy_rate.svg")
-
 plot(
     rent_by_market.step,
     rent_by_market.rent_mean,
@@ -148,4 +155,5 @@ plot(
     size = (900, 500),
 )
 
-savefig("rent.svg")
+#savefig("vacancy_rate.svg")
+#savefig("rent.svg")
