@@ -6,7 +6,8 @@
 # index, computed citywide across the model's zones. Both are written once
 # for an arbitrary number of income groups (the two-group formulas are a
 # special case of the multi-group ones), and reused for the two-group
-# (10, 25, 50, 75, 90) and three-group (tercile) columns in model_data.
+# (10, 20, 50, 80, 90) and three-group (bottom 20% / middle 60% / top 20%)
+# columns in model_data.
 
 function gini(incomes::AbstractVector{<:Real})
     n = length(incomes)
@@ -94,34 +95,45 @@ function model_segregation_row(
     # For each p, compares the lower p% of (citywide) income against the
     # remaining (100 - p)%. Not symmetric in p: the lower 10% vs rest and
     # the lower 90% vs rest are different bipartitions (poorest decile vs.
-    # richest decile are different groups), so p = 10, 25, 75, 90 are all
+    # richest decile are different groups), so p = 10, 20, 80, 90 are all
     # kept as distinct columns; only p = 50 is its own mirror image.
     d_10, e_10 = citywide_segregation_indices(model, lower_tail_cutoffs[10])
-    d_25, e_25 = citywide_segregation_indices(model, lower_tail_cutoffs[25])
+    d_20, e_20 = citywide_segregation_indices(model, lower_tail_cutoffs[20])
     d_50, e_50 = citywide_segregation_indices(model, lower_tail_cutoffs[50])
-    d_75, e_75 = citywide_segregation_indices(model, lower_tail_cutoffs[75])
+    d_80, e_80 = citywide_segregation_indices(model, lower_tail_cutoffs[80])
     d_90, e_90 = citywide_segregation_indices(model, lower_tail_cutoffs[90])
     d_three, e_three = citywide_segregation_indices(model, cutoffs_three_groups)
 
     return (
         step = model.step_count,
         dissimilarity_10 = d_10,
-        dissimilarity_25 = d_25,
+        dissimilarity_20 = d_20,
         dissimilarity_50 = d_50,
-        dissimilarity_75 = d_75,
+        dissimilarity_80 = d_80,
         dissimilarity_90 = d_90,
         dissimilarity_three_groups = d_three,
         exposure_10 = e_10,
-        exposure_25 = e_25,
+        exposure_20 = e_20,
         exposure_50 = e_50,
-        exposure_75 = e_75,
+        exposure_80 = e_80,
         exposure_90 = e_90,
         exposure_three_groups = e_three,
     )
 end
 
-function zone_income_row(zone_id::Int, residents::Vector{ResidentAgent}, step::Int)
+function zone_income_row(
+        zone_id::Int,
+        residents::Vector{ResidentAgent},
+        step::Int,
+        lower_tail_cutoffs::Dict{Int, Vector{Float64}},
+    )
     incomes = [r.income for r in residents]
+    n = length(incomes)
+
+    # Shares of the zone's population that fall in the citywide bottom/top
+    # p%, using the same (citywide) cutoffs as the segregation indices above.
+    share_below(p) = n == 0 ? NaN : count(<=(lower_tail_cutoffs[p][1]), incomes) / n
+    share_above(p) = n == 0 ? NaN : count(>(lower_tail_cutoffs[p][1]), incomes) / n
 
     return (
         step = step,
@@ -129,5 +141,10 @@ function zone_income_row(zone_id::Int, residents::Vector{ResidentAgent}, step::I
         average_income = mean_or_nan(incomes),
         median_income = median_or_nan(incomes),
         gini = gini(incomes),
+        share_bottom_10 = share_below(10),
+        share_bottom_20 = share_below(20),
+        share_bottom_50 = share_below(50),
+        share_top_20 = share_above(80),
+        share_top_10 = share_above(90),
     )
 end

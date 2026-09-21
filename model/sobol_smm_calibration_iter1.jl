@@ -7,6 +7,8 @@ using QuasiMonteCarlo
 
 include(joinpath(@__DIR__, "interfaces.jl"))
 include(joinpath(@__DIR__, "model.jl"))
+include(joinpath(@__DIR__, "segregation.jl"))
+include(joinpath(@__DIR__, "distributions.jl"))
 
 
 # ============================================================
@@ -50,17 +52,12 @@ const EMPIRICAL_RENTS = [
     235.0,
 ]
 
-const LOG_INCOME_MU = 12.584991083577634
-const LOG_INCOME_SIGMA = 0.5457737566188
-
 
 # ============================================================
 # MODEL RUN
 # ============================================================
 
 function run_model(amenities, seed)
-    income_distribution(rng) = round(rand(rng, LogNormal(LOG_INCOME_MU, LOG_INCOME_SIGMA)) / 1_000)
-
     districts = DataFrame(
         id = [1, 2, 3, 4, 5, 6],
         zone_id = [1, 1, 2, 2, 3, 3],
@@ -74,11 +71,11 @@ function run_model(amenities, seed)
         ],
         amenity = amenities,
         rent = [120, 120, 120, 120, 120, 120],
-        units = [142, 150, 363, 117, 170, 20],
+        units = [142, 151, 363, 117, 170, 20],
     )
 
     model = SegregationModel(
-        income_distribution,
+        lognormal_distribution,
         0.4026,    # utility_alpha
         0.1433,   # utility_beta
         0.0980,  # price_change
@@ -134,7 +131,9 @@ function run_sobol_block()
         SobolSample(),
     )
 
-    for sample_id in FIRST_SAMPLE:LAST_SAMPLE
+    write_lock = ReentrantLock()
+
+    Threads.@threads for sample_id in FIRST_SAMPLE:LAST_SAMPLE
         θ = samples[:, sample_id]
 
         amenities = [
@@ -171,12 +170,13 @@ function run_sobol_block()
             objective_abs_diff = objective_abs_diff,
         )
 
-        CSV.write(
-            OUTPUT_PATH,
-            DataFrame([result]);
-            append = isfile(OUTPUT_PATH),
-        )
-
+        lock(write_lock) do
+            CSV.write(
+                OUTPUT_PATH,
+                DataFrame([result]);
+                append = isfile(OUTPUT_PATH),
+            )
+        end
     end
 end
 

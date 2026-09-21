@@ -5,15 +5,15 @@ function empty_model_data()
     DataFrame(
         step = Int[],
         dissimilarity_10 = Float64[],
-        dissimilarity_25 = Float64[],
+        dissimilarity_20 = Float64[],
         dissimilarity_50 = Float64[],
-        dissimilarity_75 = Float64[],
+        dissimilarity_80 = Float64[],
         dissimilarity_90 = Float64[],
         dissimilarity_three_groups = Float64[],
         exposure_10 = Float64[],
-        exposure_25 = Float64[],
+        exposure_20 = Float64[],
         exposure_50 = Float64[],
-        exposure_75 = Float64[],
+        exposure_80 = Float64[],
         exposure_90 = Float64[],
         exposure_three_groups = Float64[],
     )
@@ -37,6 +37,11 @@ function empty_zone_data()
         average_income = Float64[],
         median_income = Float64[],
         gini = Float64[],
+        share_bottom_10 = Float64[],
+        share_bottom_20 = Float64[],
+        share_bottom_50 = Float64[],
+        share_top_20 = Float64[],
+        share_top_10 = Float64[],
     )
 end
 
@@ -53,15 +58,15 @@ function collect_data!(model::SegregationModel)
     end
 
     all_incomes = [r.income for r in model.residents]
-    lower_tail_cutoffs = Dict(p => percentile_cutoffs(all_incomes, [p / 100]) for p in (10, 25, 50, 75, 90))
-    cutoffs_three_groups = percentile_cutoffs(all_incomes, [1 / 3, 2 / 3])
+    lower_tail_cutoffs = Dict(p => percentile_cutoffs(all_incomes, [p / 100]) for p in (10, 20, 50, 80, 90))
+    cutoffs_three_groups = percentile_cutoffs(all_incomes, [0.2, 0.8])
 
     push!(model.model_data, model_segregation_row(model, lower_tail_cutoffs, cutoffs_three_groups))
 
     for zone_id in unique(d.zone_id for d in model.districts)
         residents = filter(r -> r.home !== nothing && r.home.zone_id == zone_id, model.residents)
 
-        push!(model.zone_data, zone_income_row(zone_id, residents, model.step_count))
+        push!(model.zone_data, zone_income_row(zone_id, residents, model.step_count, lower_tail_cutoffs))
     end
 
     return nothing
@@ -112,15 +117,11 @@ function multi_round_matching(model::SegregationModel)
 end
 
 function rent_hike!(district::DistrictAgent, model::SegregationModel)
-    if district.id === 5
-        return nothing
-    end
-
     target_occupied = (1 - model.natural_vacancy_rate) * district.units
 
     occupancy_gap = (district.occupied_units - target_occupied) / district.units
     
-    district.rent *= (1 + model.price_change)^occupancy_gap
+    district.rent = max(district.rent * (1 + model.price_change)^occupancy_gap, 120)
 end
 
 function calculate_district_group_mean_income!(model::SegregationModel)

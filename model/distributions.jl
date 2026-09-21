@@ -7,8 +7,8 @@ end
 function lognormal_distribution(rng)
     u = open_unit_random(rng)
 
-    mu = 12.584991083577634
-    sigma = 0.5457737566188
+    mu = 12.785535186461322
+    sigma = 0.5457749586215146
 
     income = exp(mu + sigma * quantile(Normal(), u))
 
