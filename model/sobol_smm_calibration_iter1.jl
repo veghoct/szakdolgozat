@@ -16,14 +16,14 @@ include(joinpath(@__DIR__, "distributions.jl"))
 # ============================================================
 
 const FIRST_SAMPLE = 1
-const LAST_SAMPLE = 10000
+const LAST_SAMPLE = 100000
 
 const REPLICATIONS = 10
 const STEPS = 150
 const AVERAGING_WINDOW = 50
 const BASE_SEED = 12_345
 
-const OUTPUT_PATH = joinpath(@__DIR__, "../sobol_smm_results.csv")
+const OUTPUT_PATH = joinpath(@__DIR__, "../sobol_smm_results_iter1.csv")
 
 const FIXED_AMENITY = 1
 
