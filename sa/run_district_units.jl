@@ -11,7 +11,7 @@ include("../model/distributions.jl")
 # district), preserving the districts' relative proportions. Every other
 # parameter stays at its benchmark value (including number_of_households =
 # 799), and the equilibrium-window outcome is averaged over 30 seeded
-# replicates (seeds 0..29) at each sweep point.
+# replicates (seeds 260927..260956) at each sweep point.
 #
 # The lower end of that range is narrowed from 0.75 to 0.831: below a scale
 # factor of ~0.8297 the scaled-down district table (rounded per district)
@@ -34,20 +34,20 @@ function run_once(run_id, scale_factor; steps = 150)
             "3. Zóna - Luxus",
         ],
         amenity = [
-            1.30627197265625,
-            5.25037841796875,
-            1.30538818359375,
-            3.57867919921875,
+            1.0950729919433595,
+            2.8319473571777345,
+            1.1353562103271484,
+            2.319447576904297,
             1,
-            3.92484619140625,
+            2.5699244720458987,
         ],
         rent = [
-            100,
-            100,
-            100,
-            100,
-            120,
-            100,
+            130,
+            130,
+            130,
+            130,
+            130,
+            130,
         ],
         units = [round(Int, u * scale_factor) for u in BENCHMARK_UNITS],
     )
@@ -88,7 +88,7 @@ nanmean(xs) = (valid = filter(!isnan, xs); isempty(valid) ? NaN : mean(valid))
 steps = 1000
 n_sweep_points = 20
 scale_factors = collect(range(0.831, 1.25, length = n_sweep_points))
-replicate_seeds = 0:29
+replicate_seeds = 260927:260956
 district_ids = 1:6
 
 rent_by_replicate = Array{Float64}(undef, n_sweep_points, length(replicate_seeds), length(district_ids))
@@ -156,48 +156,80 @@ println("Equilibrium exposure (three groups, citywide) by district-units scale f
 show(exposure_by_scale, allrows = true)
 println()
 
+# Thesis figure (Hungarian, sized for \includesvg at \textwidth = 16 cm):
+# equilibrium rent per submarket, citywide dissimilarity and citywide exposure
+# against the swept parameter, as one 1x3 SVG. Vacancy is printed above but
+# not plotted: in every submarket it settles at 1 - households/units by
+# construction of the rent rule, so it carries no information here.
+# GKSwstype = 100 renders GR headless (no display server needed).
+ENV["GKSwstype"] = "100"
+
+const SUBMARKET_NAMES = [
+    "1. övezet – megfizethető",
+    "1. övezet – prémium",
+    "2. övezet – megfizethető",
+    "2. övezet – prémium",
+    "3. övezet – megfizethető",
+    "3. övezet – prémium",
+]
+const ZONE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a"]
+const CITYWIDE_COLOR = "#333333"
+const BENCHMARK_COLOR = "#8a8a8a"
+# serif-roman (Computer Modern) is embedded as outlines, so the SVG needs no
+# installed font and covers the Hungarian and Greek characters used below.
+const FIGURE_FONT = "serif-roman"
+
+submarket_color(id) = ZONE_COLORS[cld(id, 2)]
+submarket_linestyle(id) = isodd(id) ? :solid : :dash
+hu_number(x) = (r = round(x, digits = 4); isinteger(r) ? string(Int(r)) : replace(string(r), "." => ","))
+
+function hu_ticks(lo, hi)
+    ticks = Plots.PlotUtils.optimize_ticks(lo, hi; k_min = 3, k_max = 5)[1]
+    return (ticks, hu_number.(ticks))
+end
+
+function thesis_figure(rent_df, x_column, dissimilarity_df, exposure_df; xlabel, title, benchmark, path)
+    x = dissimilarity_df[!, x_column]
+    common = (
+        fontfamily = FIGURE_FONT, xlabel = xlabel, xticks = hu_ticks(extrema(x)...), yformatter = hu_number,
+        titlefontsize = 8, guidefontsize = 8, tickfontsize = 7, legend = false,
+        linewidth = 1.2, markershape = :circle, markersize = 2, markerstrokewidth = 0,
+        gridalpha = 0.15, framestyle = :axes,
+    )
+
+    rent_panel = plot(; title = "Egyensúlyi albérleti díj (ezer Ft)", common...)
+    for id in 1:6
+        sub = sort(unique(rent_df[rent_df.id .== id, :], x_column), x_column)
+        plot!(rent_panel, sub[!, x_column], sub.rent; color = submarket_color(id), markercolor = submarket_color(id), linestyle = submarket_linestyle(id))
+    end
+    dissimilarity_panel = plot(x, dissimilarity_df.dissimilarity_three_groups; title = "Disszimilaritási index", color = CITYWIDE_COLOR, markercolor = CITYWIDE_COLOR, common...)
+    exposure_panel = plot(exposure_df[!, x_column], exposure_df.exposure_three_groups; title = "Kitettségi index", color = CITYWIDE_COLOR, markercolor = CITYWIDE_COLOR, common...)
+    for panel in (rent_panel, dissimilarity_panel, exposure_panel)
+        vline!(panel, [benchmark]; color = BENCHMARK_COLOR, linestyle = :dot, linewidth = 1, label = false)
+    end
+
+    # Shared legend: one row per zone (affordable | premium), then the
+    # citywide index line and the benchmark marker.
+    legend_panel = plot(; framestyle = :none, legend = :top, legend_column = 2, legendfontsize = 7, fontfamily = FIGURE_FONT,
+        foreground_color_legend = nothing, background_color_legend = nothing)
+    for id in 1:6
+        plot!(legend_panel, [NaN], [NaN]; label = SUBMARKET_NAMES[id], color = submarket_color(id), linestyle = submarket_linestyle(id), linewidth = 1.2)
+    end
+    plot!(legend_panel, [NaN], [NaN]; label = "városi index", color = CITYWIDE_COLOR, linewidth = 1.2)
+    plot!(legend_panel, [NaN], [NaN]; label = "referenciaérték", color = BENCHMARK_COLOR, linestyle = :dot, linewidth = 1)
+
+    figure = plot(rent_panel, dissimilarity_panel, exposure_panel, legend_panel;
+        layout = @layout([a b c; d{0.24h}]), size = (605, 320),
+        plot_title = title, plot_titlefontsize = 9, plot_titlefontfamily = FIGURE_FONT,
+        left_margin = 1Plots.mm, right_margin = 1Plots.mm, top_margin = 0Plots.mm, bottom_margin = 1Plots.mm)
+    savefig(figure, path)
+end
+
 mkpath(joinpath(@__DIR__, "district_units"))
 
-plot(
-    rent_by_scale.scale_factor,
-    rent_by_scale.rent,
-    group = rent_by_scale.id,
-    xlabel = "District-units scale factor",
-    ylabel = "Equilibrium rent",
-    title = "Equilibrium rent vs district-units scale factor",
-    size = (900, 500),
+thesis_figure(rent_by_scale, :scale_factor, dissimilarity_by_scale, exposure_by_scale;
+    xlabel = "állomány-szorzó",
+    title = "A teljes lakásállomány arányos változtatásának hatása",
+    benchmark = 1.0,
+    path = joinpath(@__DIR__, "district_units", "district_units.svg"),
 )
-savefig(joinpath(@__DIR__, "district_units", "rent.svg"))
-
-plot(
-    vacancy_rate_by_scale.scale_factor,
-    vacancy_rate_by_scale.vacancy_rate,
-    group = vacancy_rate_by_scale.id,
-    xlabel = "District-units scale factor",
-    ylabel = "Equilibrium vacancy rate",
-    title = "Equilibrium vacancy rate vs district-units scale factor",
-    size = (900, 500),
-)
-savefig(joinpath(@__DIR__, "district_units", "vacancy_rate.svg"))
-
-plot(
-    dissimilarity_by_scale.scale_factor,
-    dissimilarity_by_scale.dissimilarity_three_groups,
-    xlabel = "District-units scale factor",
-    ylabel = "Equilibrium dissimilarity (three groups)",
-    title = "Equilibrium dissimilarity vs district-units scale factor",
-    size = (900, 500),
-    legend = false,
-)
-savefig(joinpath(@__DIR__, "district_units", "dissimilarity.svg"))
-
-plot(
-    exposure_by_scale.scale_factor,
-    exposure_by_scale.exposure_three_groups,
-    xlabel = "District-units scale factor",
-    ylabel = "Equilibrium exposure (three groups)",
-    title = "Equilibrium exposure vs district-units scale factor",
-    size = (900, 500),
-    legend = false,
-)
-savefig(joinpath(@__DIR__, "district_units", "exposure.svg"))

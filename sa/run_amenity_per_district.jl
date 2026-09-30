@@ -10,15 +10,15 @@ include("../model/distributions.jl")
 # other district at its benchmark amenity value and every other model
 # parameter at its benchmark value. Repeated once per district. At each
 # sweep point, the equilibrium-window outcome is averaged over 30 seeded
-# replicates (seeds 0..29).
+# replicates (seeds 260927..260956).
 
 const BENCHMARK_AMENITY = [
-    1.30627197265625,
-    5.25037841796875,
-    1.30538818359375,
-    3.57867919921875,
+    1.0950729919433595,
+    2.8319473571777345,
+    1.1353562103271484,
+    2.319447576904297,
     1,
-    3.92484619140625,
+    2.5699244720458987,
 ]
 
 function run_once(run_id, target_district_idx, target_amenity; steps = 150)
@@ -38,12 +38,12 @@ function run_once(run_id, target_district_idx, target_amenity; steps = 150)
         ],
         amenity = amenity,
         rent = [
-            100,
-            100,
-            100,
-            100,
-            120,
-            100,
+            130,
+            130,
+            130,
+            130,
+            130,
+            130,
         ],
         units = [
             142,
@@ -90,8 +90,81 @@ nanmean(xs) = (valid = filter(!isnan, xs); isempty(valid) ? NaN : mean(valid))
 
 steps = 1000
 n_sweep_points = 20
-replicate_seeds = 0:29
+replicate_seeds = 260927:260956
 district_ids = 1:6
+
+# Thesis figure (Hungarian, sized for \includesvg at \textwidth = 16 cm):
+# equilibrium rent per submarket, citywide dissimilarity and citywide exposure
+# against the swept parameter, as one 1x3 SVG. Vacancy is printed above but
+# not plotted: in every submarket it settles at 1 - households/units by
+# construction of the rent rule, so it carries no information here.
+# GKSwstype = 100 renders GR headless (no display server needed).
+ENV["GKSwstype"] = "100"
+
+const SUBMARKET_NAMES = [
+    "1. övezet – megfizethető",
+    "1. övezet – prémium",
+    "2. övezet – megfizethető",
+    "2. övezet – prémium",
+    "3. övezet – megfizethető",
+    "3. övezet – prémium",
+]
+const ZONE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a"]
+const CITYWIDE_COLOR = "#333333"
+const BENCHMARK_COLOR = "#8a8a8a"
+# serif-roman (Computer Modern) is embedded as outlines, so the SVG needs no
+# installed font and covers the Hungarian and Greek characters used below.
+const FIGURE_FONT = "serif-roman"
+
+submarket_color(id) = ZONE_COLORS[cld(id, 2)]
+submarket_linestyle(id) = isodd(id) ? :solid : :dash
+hu_number(x) = (r = round(x, digits = 4); isinteger(r) ? string(Int(r)) : replace(string(r), "." => ","))
+
+function hu_ticks(lo, hi)
+    ticks = Plots.PlotUtils.optimize_ticks(lo, hi; k_min = 3, k_max = 5)[1]
+    return (ticks, hu_number.(ticks))
+end
+
+function thesis_figure(rent_df, x_column, dissimilarity_df, exposure_df; xlabel, title, benchmark, path)
+    x = dissimilarity_df[!, x_column]
+    common = (
+        fontfamily = FIGURE_FONT, xlabel = xlabel, xticks = hu_ticks(extrema(x)...), yformatter = hu_number,
+        titlefontsize = 8, guidefontsize = 8, tickfontsize = 7, legend = false,
+        linewidth = 1.2, markershape = :circle, markersize = 2, markerstrokewidth = 0,
+        gridalpha = 0.15, framestyle = :axes,
+    )
+
+    rent_panel = plot(; title = "Egyensúlyi albérleti díj (ezer Ft)", common...)
+    for id in 1:6
+        sub = sort(unique(rent_df[rent_df.id .== id, :], x_column), x_column)
+        plot!(rent_panel, sub[!, x_column], sub.rent; color = submarket_color(id), markercolor = submarket_color(id), linestyle = submarket_linestyle(id))
+    end
+    dissimilarity_panel = plot(x, dissimilarity_df.dissimilarity_three_groups; title = "Disszimilaritási index", color = CITYWIDE_COLOR, markercolor = CITYWIDE_COLOR, common...)
+    exposure_panel = plot(exposure_df[!, x_column], exposure_df.exposure_three_groups; title = "Kitettségi index", color = CITYWIDE_COLOR, markercolor = CITYWIDE_COLOR, common...)
+    for panel in (rent_panel, dissimilarity_panel, exposure_panel)
+        vline!(panel, [benchmark]; color = BENCHMARK_COLOR, linestyle = :dot, linewidth = 1, label = false)
+    end
+
+    # Shared legend: one row per zone (affordable | premium), then the
+    # citywide index line and the benchmark marker.
+    legend_panel = plot(; framestyle = :none, legend = :top, legend_column = 2, legendfontsize = 7, fontfamily = FIGURE_FONT,
+        foreground_color_legend = nothing, background_color_legend = nothing)
+    for id in 1:6
+        plot!(legend_panel, [NaN], [NaN]; label = SUBMARKET_NAMES[id], color = submarket_color(id), linestyle = submarket_linestyle(id), linewidth = 1.2)
+    end
+    plot!(legend_panel, [NaN], [NaN]; label = "városi index", color = CITYWIDE_COLOR, linewidth = 1.2)
+    plot!(legend_panel, [NaN], [NaN]; label = "referenciaérték", color = BENCHMARK_COLOR, linestyle = :dot, linewidth = 1)
+
+    figure = plot(rent_panel, dissimilarity_panel, exposure_panel, legend_panel;
+        layout = @layout([a b c; d{0.24h}]), size = (605, 320),
+        plot_title = title, plot_titlefontsize = 9, plot_titlefontfamily = FIGURE_FONT,
+        left_margin = 1Plots.mm, right_margin = 1Plots.mm, top_margin = 0Plots.mm, bottom_margin = 1Plots.mm)
+    savefig(figure, path)
+end
+
+# Hungarian title of a per-submarket sweep: "Az 1. övezet prémium részpiaci
+# ... hatása" ("Az" before 1, "A" before 2 and 3).
+submarket_title(id, noun) = string(cld(id, 2) == 1 ? "Az" : "A", " ", cld(id, 2), ". övezet ", isodd(id) ? "megfizethető" : "prémium", " részpiaci ", noun, " hatása")
 
 mkpath(joinpath(@__DIR__, "amenity_per_district"))
 
@@ -167,47 +240,10 @@ for target_district_idx in 1:6
     show(exposure_by_amenity, allrows = true)
     println()
 
-    plot(
-        rent_by_amenity.amenity,
-        rent_by_amenity.rent,
-        group = rent_by_amenity.id,
-        xlabel = "District $target_district_id amenity",
-        ylabel = "Equilibrium rent",
-        title = "Equilibrium rent vs district $target_district_id amenity",
-        size = (900, 500),
+    thesis_figure(rent_by_amenity, :amenity, dissimilarity_by_amenity, exposure_by_amenity;
+        xlabel = "amenitás",
+        title = submarket_title(target_district_id, "amenitásának"),
+        benchmark = benchmark_amenity_d,
+        path = joinpath(@__DIR__, "amenity_per_district", "d$(target_district_id).svg"),
     )
-    savefig(joinpath(@__DIR__, "amenity_per_district", "d$(target_district_id)_rent.svg"))
-
-    plot(
-        vacancy_rate_by_amenity.amenity,
-        vacancy_rate_by_amenity.vacancy_rate,
-        group = vacancy_rate_by_amenity.id,
-        xlabel = "District $target_district_id amenity",
-        ylabel = "Equilibrium vacancy rate",
-        title = "Equilibrium vacancy rate vs district $target_district_id amenity",
-        size = (900, 500),
-    )
-    savefig(joinpath(@__DIR__, "amenity_per_district", "d$(target_district_id)_vacancy_rate.svg"))
-
-    plot(
-        dissimilarity_by_amenity.amenity,
-        dissimilarity_by_amenity.dissimilarity_three_groups,
-        xlabel = "District $target_district_id amenity",
-        ylabel = "Equilibrium dissimilarity (three groups)",
-        title = "Equilibrium dissimilarity vs district $target_district_id amenity",
-        size = (900, 500),
-        legend = false,
-    )
-    savefig(joinpath(@__DIR__, "amenity_per_district", "d$(target_district_id)_dissimilarity.svg"))
-
-    plot(
-        exposure_by_amenity.amenity,
-        exposure_by_amenity.exposure_three_groups,
-        xlabel = "District $target_district_id amenity",
-        ylabel = "Equilibrium exposure (three groups)",
-        title = "Equilibrium exposure vs district $target_district_id amenity",
-        size = (900, 500),
-        legend = false,
-    )
-    savefig(joinpath(@__DIR__, "amenity_per_district", "d$(target_district_id)_exposure.svg"))
 end

@@ -16,7 +16,7 @@ include(joinpath(@__DIR__, "distributions.jl"))
 # ============================================================
 
 const FIRST_SAMPLE = 1
-const LAST_SAMPLE = 10000
+const LAST_SAMPLE = 100000
 
 const REPLICATIONS = 10
 const STEPS = 150
@@ -32,15 +32,15 @@ const LOWER_BOUNDS = [
     2.8,
     1.0,
     1.9,
-    1.9,
+    1.81,
 ]
 
 const UPPER_BOUNDS = [
-    3.70,
-    10.0,
-    4.24,
-    7.57,
-    8.38,
+    2.8,
+    7.12,
+    2.8,
+    5.68,
+    5.86,
 ]
 
 const EMPIRICAL_RENTS = [

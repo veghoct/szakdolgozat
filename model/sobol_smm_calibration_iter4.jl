@@ -16,9 +16,9 @@ include(joinpath(@__DIR__, "distributions.jl"))
 # ============================================================
 
 const FIRST_SAMPLE = 1
-const LAST_SAMPLE = 10000
+const LAST_SAMPLE = 25000
 
-const REPLICATIONS = 100
+const REPLICATIONS = 25
 const STEPS = 150
 const AVERAGING_WINDOW = 50
 const BASE_SEED = 12_345
@@ -28,19 +28,19 @@ const OUTPUT_PATH = joinpath(@__DIR__, "../sobol_smm_results_iter4.csv")
 const FIXED_AMENITY = 1
 
 const LOWER_BOUNDS = [
-    1.0,
-    3.30,
-    1.35,
-    2.08,
-    2.64,
+    1.0396,
+    2.6274,
+    1.0697,
+    2.2887,
+    2.5413,
 ]
 
 const UPPER_BOUNDS = [
-    1.18,
-    3.50,
-    1.55,
-    2.28,
-    2.84,
+    1.2706,
+    3.2112,
+    1.3074,
+    2.7973,
+    3.1060,
 ]
 
 const EMPIRICAL_RENTS = [
@@ -70,7 +70,7 @@ function run_model(amenities, seed)
             "3. Zóna - Luxus",
         ],
         amenity = amenities,
-        rent = [120, 120, 120, 120, 120, 120],
+        rent = [130, 130, 130, 130, 130, 130],
         units = [142, 151, 363, 117, 170, 20],
     )
 
